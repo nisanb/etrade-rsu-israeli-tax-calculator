@@ -51,7 +51,7 @@ function _updateRateRowVisibility() {
 
 function _rateLabel(rateData) {
   if (!rateData) return 'Rate unavailable';
-  const d = new Date(rateData.fetchedAt).toLocaleDateString('en-IL');
+  const d = new Date(rateData.fetchedAt).toLocaleDateString('en-US');
   return `${rateData.source} · ${d}${rateData.manualOverride ? ' ⚠ override' : ''}`;
 }
 
