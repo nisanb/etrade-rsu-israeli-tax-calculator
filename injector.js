@@ -1,6 +1,6 @@
 // injector.js
-const SELLABLE_TABLE_SELECTOR = 'table.et-table--sellable'; // fallback; content.js uses _findSellableTable() first
-const QTY_INPUT_SELECTOR = 'input[type="number"], input[type="text"]';
+const SELLABLE_TABLE_SELECTOR = 'table.table-presentation.table-striped'; // fallback; content.js uses _findSellableTable() first
+const QTY_INPUT_SELECTOR = 'input.form-control[placeholder="0"], input.form-control, input[type="number"]';
 
 const IL_CLASS = 'il-tax-col';
 const STYLE_HEADER = 'background:#e8f5e9;color:#1b5e20;padding:5px 8px;font-size:11px;white-space:nowrap;border-top:2px solid #4caf50;';
@@ -29,10 +29,14 @@ function injectColumns(table) {
   table.querySelectorAll('tbody tr').forEach(row => {
     const qtyInput = row.querySelector(QTY_INPUT_SELECTOR);
     if (!qtyInput) return;
+    const cells = row.querySelectorAll('td');
+    // Capture vest date (td[1]: MM/DD/YYYY) and FMV (td[3]: '$57.75 info') at injection time
+    const dateText = cells[1] ? cells[1].textContent.trim() : '';
+    const fmvText = cells[3] ? cells[3].textContent.trim() : '0';
     const taxCell = _td(), netCell = _td(), rateCell = _td();
     taxCell.textContent = netCell.textContent = rateCell.textContent = '—';
     row.append(taxCell, netCell, rateCell);
-    handles.push({ row, qtyInput, taxCell, netCell, rateCell });
+    handles.push({ row, qtyInput, taxCell, netCell, rateCell, dateText, fmvText });
   });
 
   const existingCols = headerRow ? headerRow.querySelectorAll('th').length - 3 : 5;
