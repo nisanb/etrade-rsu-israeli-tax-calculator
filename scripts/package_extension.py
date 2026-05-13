@@ -13,9 +13,11 @@ EXCLUDED_NAMES = {
     "scripts",
     "AGENTS.md",
     "README.md",
+    "PRIVACY_POLICY.md",
     "CONTRIBUTING.md",
     "LICENSE",
     ".DS_Store",
+    "privacy-policy.html",
     "stockplan.html",
 }
 

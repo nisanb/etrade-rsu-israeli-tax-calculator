@@ -18,6 +18,8 @@ fs.writeFileSync(path.join(srcDir, 'content.js'), 'console.log("hi");');
 fs.writeFileSync(path.join(srcDir, 'popup.html'), '<html></html>');
 fs.writeFileSync(path.join(srcDir, 'icons', 'icon128.png'), 'icon');
 fs.writeFileSync(path.join(srcDir, 'README.md'), 'docs');
+fs.writeFileSync(path.join(srcDir, 'PRIVACY_POLICY.md'), 'policy');
+fs.writeFileSync(path.join(srcDir, 'privacy-policy.html'), '<html>policy</html>');
 fs.writeFileSync(path.join(srcDir, 'AGENTS.md'), 'agent');
 fs.writeFileSync(path.join(srcDir, 'tests', 'ignored.js'), 'ignored');
 fs.writeFileSync(path.join(srcDir, 'docs', 'ignored.md'), 'ignored');
