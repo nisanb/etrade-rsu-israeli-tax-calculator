@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Privacy Policy | IL Tax Calculator for E*TRADE</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f1e8;
+        --panel: #fffaf0;
+        --ink: #1f2a37;
+        --muted: #5b6470;
+        --line: #d8cdb8;
+        --accent: #0f766e;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 26rem),
+          linear-gradient(180deg, #f8f4eb 0%, var(--bg) 100%);
+        color: var(--ink);
+      }
+
+      main {
+        max-width: 52rem;
+        margin: 3rem auto;
+        padding: 0 1.25rem 3rem;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 20px 60px rgba(31, 42, 55, 0.08);
+      }
+
+      h1, h2 {
+        line-height: 1.15;
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: clamp(2rem, 4vw, 3rem);
+      }
+
+      h2 {
+        margin-top: 2rem;
+        font-size: 1.2rem;
+      }
+
+      p, li {
+        font-size: 1.02rem;
+        line-height: 1.7;
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <div class="eyebrow">Privacy Policy</div>
+        <h1>IL Tax Calculator for E*TRADE</h1>
+        <p class="muted">Last updated: May 13, 2026</p>
+        <p>
+          IL Tax Calculator for E*TRADE is a Chrome extension that calculates Israeli tax estimates
+          for RSU holdings shown on the E*TRADE stock-plan holdings page.
+        </p>
+
+        <h2>What the extension accesses</h2>
+        <p>
+          The extension reads stock-plan holdings information from the E*TRADE stock-plan page that
+          the user opens in Chrome. This data is used only to calculate and display Israeli tax
+          estimates inside the user's browser.
+        </p>
+        <ul>
+          <li>Holdings and grant-related information shown on the E*TRADE stock-plan page</li>
+          <li>User-entered calculator settings such as tax mode, rates, display currency, and exchange-rate preferences</li>
+          <li>USD/ILS exchange-rate data returned by public exchange-rate APIs</li>
+        </ul>
+
+        <h2>How the data is used</h2>
+        <p>The extension uses E*TRADE page data only to:</p>
+        <ul>
+          <li>Parse holdings and grant information from the current page</li>
+          <li>Calculate Israeli Section 102 tax estimates</li>
+          <li>Render those estimates on the page and in the extension popup</li>
+        </ul>
+        <p>
+          The extension uses stored settings only to preserve the user's calculator preferences
+          between sessions.
+        </p>
+
+        <h2>Data storage</h2>
+        <p>The extension stores configuration data in Chrome storage:</p>
+        <ul>
+          <li><code>chrome.storage.sync</code> for user calculator settings</li>
+          <li><code>chrome.storage.local</code> for cached exchange-rate data and related preferences</li>
+        </ul>
+        <p>The extension does not intentionally store full E*TRADE holdings data in persistent extension storage.</p>
+
+        <h2>External network requests</h2>
+        <p>The extension fetches USD/ILS exchange-rate data from:</p>
+        <ul>
+          <li>Bank of Israel endpoints</li>
+          <li>A fallback exchange-rate API if the primary source is unavailable</li>
+        </ul>
+        <p>These requests are used only to retrieve exchange-rate information required for tax estimates.</p>
+
+        <h2>Data sharing</h2>
+        <p>The extension does not:</p>
+        <ul>
+          <li>Transmit E*TRADE holdings data to the developer</li>
+          <li>Sell user data</li>
+          <li>Use user data for advertising</li>
+          <li>Use user data for creditworthiness or lending decisions</li>
+        </ul>
+
+        <h2>Security and scope</h2>
+        <p>
+          The extension is intended to run on the E*TRADE stock-plan holdings page and perform
+          calculations locally in the browser.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          For questions about this privacy policy or the extension, use the repository support/contact
+          channel for this project:
+          <a href="https://github.com/nisanb/etrade-rsu-israeli-tax-calculator">github.com/nisanb/etrade-rsu-israeli-tax-calculator</a>
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
