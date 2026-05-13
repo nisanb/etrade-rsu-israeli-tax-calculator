@@ -1,4 +1,7 @@
 // calculator.js
+// Israeli Section 102 Income Track tax rules:
+//   ≥2yr: ordinary income tax on min(grossUSD, benefitUSD) + 25% CG on max(0, grossUSD - benefitUSD)
+//   <2yr: ordinary income tax on entire gross proceeds
 
 var IL_BRACKETS_2026 = [
   { limit: 84120,    rate: 0.10 },
@@ -7,7 +10,7 @@ var IL_BRACKETS_2026 = [
   { limit: 301200,   rate: 0.31 },
   { limit: 560280,   rate: 0.35 },
   { limit: 721560,   rate: 0.47 },
-  { limit: Infinity, rate: 0.50 }, // 47% + built-in 3% surtax (Section 121b)
+  { limit: Infinity, rate: 0.50 }, // 47% + 3% surtax (Section 121b)
 ];
 
 function bracketTaxForAmount(amountILS, brackets) {
@@ -22,38 +25,58 @@ function bracketTaxForAmount(amountILS, brackets) {
   return tax;
 }
 
-// Returns per-lot tax result.
-// In bracket mode, grossTaxILS is the marginal bracket tax for this lot only.
+// Returns { taxUSD, ordinaryTaxUSD, cgTaxUSD, grossTaxILS, gainILS, effectiveRate, mode }.
+// grossTaxILS / gainILS are only present in bracket mode (for resident credit calculation).
+// In bracket mode, grossTaxILS covers the ordinary-income bracket tax only; cgTaxUSD is always flat.
 // The resident credit is applied at the total level in the recalculation loop, not here.
 function calculateLotTax({
-  gainUSD,
+  grossUSD,
+  benefitUSD,         // FMV × qty (ordinary income base for ≥2yr)
   yearsSinceVesting,
-  mode,
+  mode,               // 'flat' | 'bracket'
   flatOrdinaryRate,
   capitalGainsRate,
   capitalGainsSurtax,
   usdToILS,
-  residentCreditILS, // not used here; applied at total level in bracket mode
-  priorGainILS,
+  priorGainILS,       // cumulative ordinary income ILS already taxed (bracket mode)
 }) {
-  if (gainUSD <= 0) {
-    return { taxUSD: 0, grossTaxILS: 0, gainILS: 0, effectiveRate: 0, mode: 'zero' };
+  if (grossUSD <= 0) {
+    return { taxUSD: 0, ordinaryTaxUSD: 0, cgTaxUSD: 0, gainILS: 0, grossTaxILS: 0, effectiveRate: 0, mode: 'zero' };
   }
+
+  const cgRate = capitalGainsRate + (capitalGainsSurtax ? 0.03 : 0);
 
   if (yearsSinceVesting >= 2) {
-    const rate = capitalGainsRate + (capitalGainsSurtax ? 0.03 : 0);
-    return { taxUSD: gainUSD * rate, effectiveRate: rate, mode: 'capital-gains' };
+    // Ordinary income on the FMV benefit (capped at gross if stock fell below FMV)
+    const ordinaryBase = Math.min(grossUSD, benefitUSD);
+    const cgBase = Math.max(0, grossUSD - benefitUSD);
+    const cgTaxUSD = cgBase * cgRate;
+
+    if (mode === 'flat') {
+      const ordinaryTaxUSD = ordinaryBase * flatOrdinaryRate;
+      const taxUSD = ordinaryTaxUSD + cgTaxUSD;
+      return { taxUSD, ordinaryTaxUSD, cgTaxUSD, effectiveRate: taxUSD / grossUSD, mode: 'capital-gains' };
+    }
+
+    // Bracket mode: marginal brackets on ordinary portion only; CG is always flat
+    const ordinaryILS = ordinaryBase * usdToILS;
+    const grossTaxILS = bracketTaxForAmount(priorGainILS + ordinaryILS, IL_BRACKETS_2026)
+                      - bracketTaxForAmount(priorGainILS, IL_BRACKETS_2026);
+    const ordinaryTaxUSD = grossTaxILS / usdToILS;
+    const taxUSD = ordinaryTaxUSD + cgTaxUSD;
+    return { taxUSD, ordinaryTaxUSD, cgTaxUSD, grossTaxILS, gainILS: ordinaryILS, effectiveRate: taxUSD / grossUSD, mode: 'capital-gains' };
   }
 
+  // <2yr: ordinary income tax on entire gross proceeds
   if (mode === 'flat') {
-    return { taxUSD: gainUSD * flatOrdinaryRate, effectiveRate: flatOrdinaryRate, mode: 'flat-ordinary' };
+    const taxUSD = grossUSD * flatOrdinaryRate;
+    return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, effectiveRate: flatOrdinaryRate, mode: 'flat-ordinary' };
   }
 
-  // Bracket mode: marginal tax from priorGainILS to priorGainILS + gainILS
-  const gainILS = gainUSD * usdToILS;
-  const taxOnPrior = bracketTaxForAmount(priorGainILS, IL_BRACKETS_2026);
-  const taxOnTotal = bracketTaxForAmount(priorGainILS + gainILS, IL_BRACKETS_2026);
-  const grossTaxILS = taxOnTotal - taxOnPrior;
-  const effectiveRate = gainILS > 0 ? grossTaxILS / gainILS : 0;
-  return { taxUSD: grossTaxILS / usdToILS, grossTaxILS, gainILS, effectiveRate, mode: 'bracket' };
+  // <2yr bracket mode
+  const grossILS = grossUSD * usdToILS;
+  const grossTaxILS = bracketTaxForAmount(priorGainILS + grossILS, IL_BRACKETS_2026)
+                    - bracketTaxForAmount(priorGainILS, IL_BRACKETS_2026);
+  const taxUSD = grossTaxILS / usdToILS;
+  return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, grossTaxILS, gainILS: grossILS, effectiveRate: grossUSD > 0 ? taxUSD / grossUSD : 0, mode: 'bracket' };
 }

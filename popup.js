@@ -3,7 +3,7 @@
 // Messages to content script send rates as decimals (divide by 100 before sending).
 
 const DEFAULTS = {
-  sellPrice: null, incomeMode: 'flat',
+  incomeMode: 'flat',
   flatOrdinaryRate: 47, capitalGainsRate: 25,
   capitalGainsSurtax: false, residentCreditILS: 7986,
   usdToILS: 3.65, currency: 'USD',
@@ -19,7 +19,6 @@ function _sendToContent(patch) {
           ...merged,
           flatOrdinaryRate: merged.flatOrdinaryRate / 100,
           capitalGainsRate: merged.capitalGainsRate / 100,
-          sellPrice: merged.sellPrice ? parseFloat(merged.sellPrice) : null,
         },
       };
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -57,7 +56,6 @@ function _rateLabel(rateData) {
 
 document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.sync.get(DEFAULTS, (s) => {
-    document.getElementById('sellPrice').value          = s.sellPrice || '';
     document.getElementById('flatOrdinaryRate').value   = s.flatOrdinaryRate;
     document.getElementById('capitalGainsRate').value   = s.capitalGainsRate;
     document.getElementById('capitalGainsSurtax').checked = s.capitalGainsSurtax;
@@ -95,9 +93,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('currILS').addEventListener('click', () => {
     _setCurrency('ILS'); _sendToContent({ currency: 'ILS' });
-  });
-  document.getElementById('sellPrice').addEventListener('input', e => {
-    _sendToContent({ sellPrice: e.target.value ? parseFloat(e.target.value) : null });
   });
   document.getElementById('flatOrdinaryRate').addEventListener('input', e => {
     _sendToContent({ flatOrdinaryRate: parseFloat(e.target.value) || 0 });

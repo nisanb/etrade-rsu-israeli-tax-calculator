@@ -5,66 +5,99 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="header">🧮 IL Tax Calculator</div>
+  <div class="app">
 
-  <div class="field">
-    <label>Sell Price (USD)</label>
-    <input id="sellPrice" type="number" step="0.01" placeholder="Market price (auto)" />
-  </div>
+    <header class="app-header">
+      <div class="header-left">
+        <span class="app-logo">🇮🇱</span>
+        <div class="header-text">
+          <div class="app-name">IL Tax Calculator</div>
+          <div class="app-sub">E*TRADE · Section 102 RSU</div>
+        </div>
+      </div>
+      <span class="app-version">v1.0.5</span>
+    </header>
 
-  <div class="field">
-    <label>Income this tax year</label>
-    <div class="toggle-group">
-      <button class="toggle-btn" id="modeFlat">Has income</button>
-      <button class="toggle-btn" id="modeBracket">No income (brackets)</button>
+    <div class="app-body">
+
+      <div class="card">
+        <div class="card-label">Tax Mode</div>
+        <div class="toggle-group">
+          <button class="toggle-btn" id="modeFlat">Has income this year</button>
+          <button class="toggle-btn" id="modeBracket">Brackets only</button>
+        </div>
+      </div>
+
+      <div class="card" id="flatSection">
+        <div class="card-label">Ordinary Income Rate <span class="tag">&lt;2yr from grant</span></div>
+        <div class="input-pct">
+          <input id="flatOrdinaryRate" type="number" step="0.1" min="0" max="100" />
+          <span class="pct-sign">%</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Capital Gains Rate <span class="tag">≥2yr from grant</span></div>
+        <div class="input-pct">
+          <input id="capitalGainsRate" type="number" step="0.1" min="0" max="100" />
+          <span class="pct-sign">%</span>
+        </div>
+        <label class="checkbox-row">
+          <input id="capitalGainsSurtax" type="checkbox" />
+          <span>+3% surtax on CG <span class="hint">(income &gt;₪721,561 · §121b)</span></span>
+        </label>
+      </div>
+
+      <div id="bracketSection" class="card hidden">
+        <div class="card-label">2026 Israeli Tax Brackets</div>
+        <div class="bracket-grid">
+          <span>Up to ₪84,120</span><span>10%</span>
+          <span>₪84k – ₪121k</span><span>14%</span>
+          <span>₪121k – ₪228k</span><span>20%</span>
+          <span>₪228k – ₪301k</span><span>31%</span>
+          <span>₪301k – ₪560k</span><span>35%</span>
+          <span>₪560k – ₪722k</span><span>47%</span>
+          <span class="bracket-top">Above ₪722k</span><span class="bracket-top">50%</span>
+        </div>
+        <div style="margin-top:10px">
+          <div class="card-label">Annual Resident Tax Credit (₪)</div>
+          <input id="residentCreditILS" type="number" step="1" class="full-input" />
+        </div>
+      </div>
+
+      <div class="card" id="rateRow">
+        <div class="card-label">Exchange Rate</div>
+        <div class="rate-row">
+          <input id="usdToILS" type="number" step="0.0001" min="0.1" class="full-input" />
+          <span class="rate-sep">USD / ILS</span>
+          <button id="refreshRate" title="Re-fetch from Bank of Israel">↻</button>
+        </div>
+        <div id="rateSource" class="hint" style="margin-top:4px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Display Currency</div>
+        <div class="toggle-group">
+          <button class="toggle-btn" id="currUSD">$ USD</button>
+          <button class="toggle-btn" id="currILS">₪ ILS</button>
+        </div>
+      </div>
+
     </div>
-  </div>
 
-  <div id="flatSection">
-    <div class="field">
-      <label>Ordinary income rate <span class="hint">(&lt;2yr post-vest)</span></label>
-      <div class="input-pct"><input id="flatOrdinaryRate" type="number" step="0.1" min="0" max="100" /><span>%</span></div>
-    </div>
-  </div>
+    <footer class="app-footer">
+      <div class="footer-links">
+        <a class="footer-link" href="https://github.com/nisanb/etrade-rsu-israeli-tax-calculator" target="_blank">⭐ GitHub</a>
+        <span class="footer-sep">·</span>
+        <span class="footer-credit">Built by Nisan for Israeli RSU holders</span>
+      </div>
+      <div class="footer-disclaimer">
+        ⚠ Estimates only — not financial or legal advice.
+        Consult a qualified Israeli tax professional.
+      </div>
+    </footer>
 
-  <div class="field">
-    <label>Capital gains rate <span class="hint">(≥2yr post-vest)</span></label>
-    <div class="input-pct"><input id="capitalGainsRate" type="number" step="0.1" min="0" max="100" /><span>%</span></div>
   </div>
-
-  <div class="field checkbox-field">
-    <label><input id="capitalGainsSurtax" type="checkbox" /> Surtax on CG +3% <span class="hint">(income &gt;₪721,561)</span></label>
-  </div>
-
-  <div id="bracketSection" class="hidden">
-    <div class="bracket-info">
-      📊 &lt;2yr grants: 2026 brackets applied<br>
-      10%→14%→20%→31%→35%→47%→<strong>50%</strong><br>
-      <small>50% = 47% + built-in 3% surtax (§121b)</small>
-    </div>
-    <div class="field">
-      <label>Resident tax credit (₪)</label>
-      <input id="residentCreditILS" type="number" step="1" />
-    </div>
-  </div>
-
-  <div class="field" id="rateRow">
-    <label>USD / ILS</label>
-    <div class="rate-row">
-      <input id="usdToILS" type="number" step="0.0001" min="0.1" />
-      <button id="refreshRate" title="Re-fetch from Bank of Israel">↻</button>
-    </div>
-    <span id="rateSource" class="hint"></span>
-  </div>
-
-  <div class="field">
-    <label>Display currency</label>
-    <div class="toggle-group">
-      <button class="toggle-btn" id="currUSD">USD</button>
-      <button class="toggle-btn" id="currILS">ILS</button>
-    </div>
-  </div>
-
   <script src="exchange-rate.js"></script>
   <script src="popup.js"></script>
 </body>
