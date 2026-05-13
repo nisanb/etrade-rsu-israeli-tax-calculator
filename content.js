@@ -25,6 +25,43 @@ let settings = {
 let injectionResult = null;
 let parsedData = null;
 
+// Finds the sellable holdings table using multiple strategies.
+function _findSellableTable() {
+  const strategies = [
+    'table.et-table--sellable',
+    '[class*="sellable"] table',
+    '[class*="Sellable"] table',
+    '[class*="sell"] table',
+    '[id*="sellable"] table',
+    '[data-testid*="sellable"] table',
+  ];
+  for (const sel of strategies) {
+    try {
+      const el = document.querySelector(sel);
+      if (el) {
+        console.log('[IL Tax] Table found via selector:', sel);
+        return el;
+      }
+    } catch (e) {}
+  }
+
+  // Last resort: any table on the page that has an input inside it
+  const allTables = Array.from(document.querySelectorAll('table'));
+  console.log('[IL Tax] Specific selectors failed. Scanning', allTables.length, 'tables...');
+  for (const t of allTables) {
+    const inputs = t.querySelectorAll('input');
+    if (inputs.length > 0) {
+      console.log('[IL Tax] Table found via input heuristic. Classes:', t.className);
+      return t;
+    }
+  }
+
+  if (allTables.length === 0) {
+    console.log('[IL Tax] No tables found on page yet — React may not have rendered.');
+  }
+  return null;
+}
+
 function recalculate() {
   if (!injectionResult || !parsedData) return;
   const { handles, totalTaxCell, totalNetCell } = injectionResult;
@@ -95,14 +132,24 @@ function recalculate() {
 }
 
 function tryInject() {
-  const table = document.querySelector(SELLABLE_TABLE_SELECTOR);
+  const table = _findSellableTable();
   if (!table || table.dataset.ilTaxInjected) return;
 
   parsedData = parseStockPlanFromPage();
-  if (!parsedData || parsedData.lots.length === 0) return;
+  if (!parsedData) {
+    console.log('[IL Tax] parseStockPlanFromPage returned null — stockplanjson div missing or unparseable');
+    return;
+  }
+  if (parsedData.lots.length === 0) {
+    console.log('[IL Tax] No sellable lots found in stockplanjson. Market price:', parsedData.marketPrice);
+    return;
+  }
 
+  console.log('[IL Tax] Injecting into table. Lots:', parsedData.lots.length, 'Market price:', parsedData.marketPrice);
   injectionResult = injectColumns(table);
   if (!injectionResult) return;
+
+  console.log('[IL Tax] Injected', injectionResult.handles.length, 'row handles');
 
   injectionResult.handles.forEach((handle, i) => {
     handle.grantId = parsedData.lots[i] ? parsedData.lots[i].grantId : null;
@@ -128,6 +175,8 @@ function tryInject() {
     }
   });
 }
+
+console.log('[IL Tax] Content script loaded. URL:', location.href);
 
 const observer = new MutationObserver(tryInject);
 observer.observe(document.getElementById('application') || document.body, {

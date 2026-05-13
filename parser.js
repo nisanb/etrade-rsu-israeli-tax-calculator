@@ -1,13 +1,63 @@
 // parser.js
 
-// Field name constants — verify these against the live E*TRADE page during Task 8.
-// Pattern is based on selectedOtherHoldings.otherHoldings observed in stockplan.html.
-const SELLABLE_KEY = 'selectedSellableHoldings';
-const LOTS_ARRAY_KEY = 'sellableHoldings';
-const VEST_DATE_FIELD = 'vestDate';
-const FMV_FIELD = 'vestFMV';
-const SHARES_FIELD = 'sharesAvailable';
-const GRANT_ID_FIELD = 'grantId';
+function _discoverLots(data) {
+  console.log('[IL Tax] stockplanjson keys:', Object.keys(data).join(', '));
+
+  // Try known key patterns for sellable holdings
+  const attempts = [
+    () => data.selectedSellableHoldings && data.selectedSellableHoldings.sellableHoldings,
+    () => data.selectedSellableHoldings && data.selectedSellableHoldings.holdings,
+    () => data.selectedSellableHoldings && data.selectedSellableHoldings.list,
+    () => data.sellableHoldings && data.sellableHoldings.list,
+    () => data.sellableHoldings,
+  ];
+
+  for (const fn of attempts) {
+    try {
+      const arr = fn();
+      if (Array.isArray(arr) && arr.length > 0) {
+        console.log('[IL Tax] Lots found. Count:', arr.length, '| First item keys:', Object.keys(arr[0]).join(', '));
+        return arr;
+      }
+    } catch (e) {}
+  }
+
+  // Heuristic: scan nested arrays for objects with a "vest" field
+  for (const [k, v] of Object.entries(data)) {
+    if (!v || typeof v !== 'object') continue;
+    for (const [k2, v2] of Object.entries(v)) {
+      if (!Array.isArray(v2) || v2.length === 0 || typeof v2[0] !== 'object') continue;
+      const keys = Object.keys(v2[0]).map(s => s.toLowerCase());
+      if (keys.some(s => s.includes('vest'))) {
+        console.log('[IL Tax] Lots found via heuristic at', k, '->', k2, '| First item keys:', Object.keys(v2[0]).join(', '));
+        return v2;
+      }
+    }
+  }
+
+  console.log('[IL Tax] No lots found in stockplanjson');
+  return [];
+}
+
+function _mapLot(raw) {
+  const grantId =
+    raw.grantId ?? raw.grantID ?? raw.id ?? raw.awardId ?? String(Math.random());
+
+  const vestDateStr =
+    raw.vestDate ?? raw.vestingDate ?? raw.vest_date ?? raw.awardDate ?? raw.expirationDate ?? null;
+  const vestDate = vestDateStr ? new Date(vestDateStr) : new Date(0);
+
+  const fmvAtVesting = parseFloat(
+    raw.vestFMV ?? raw.fmv ?? raw.vestingFMV ?? raw.fairMarketValue ?? raw.grantPrice ?? 0
+  );
+
+  const sharesAvailable = parseInt(
+    raw.sharesAvailable ?? raw.availableShares ?? raw.quantity ?? raw.shares ?? raw.remainingShares ?? 0,
+    10
+  );
+
+  return { grantId, vestDate, fmvAtVesting, sharesAvailable, symbol: raw.symbol || 'INTC' };
+}
 
 function parseStockPlanJson(data) {
   const quoteArr = data.quotes && data.quotes.QuoteResponse;
@@ -15,23 +65,18 @@ function parseStockPlanJson(data) {
     ? parseFloat(quoteArr[0].lastPrice)
     : null;
 
-  const sellableContainer = data[SELLABLE_KEY] || {};
-  const rawLots = sellableContainer[LOTS_ARRAY_KEY] || [];
-
-  const lots = rawLots.map(lot => ({
-    grantId: lot[GRANT_ID_FIELD],
-    vestDate: new Date(lot[VEST_DATE_FIELD]),
-    fmvAtVesting: parseFloat(lot[FMV_FIELD]),
-    sharesAvailable: parseInt(lot[SHARES_FIELD], 10),
-    symbol: lot.symbol || '',
-  }));
+  const rawLots = _discoverLots(data);
+  const lots = rawLots.map(_mapLot);
 
   return { marketPrice, lots };
 }
 
 function parseStockPlanFromPage() {
   const el = document.getElementById('stockplanjson');
-  if (!el) return null;
+  if (!el) {
+    console.log('[IL Tax] #stockplanjson element not found');
+    return null;
+  }
   try {
     return parseStockPlanJson(JSON.parse(el.textContent));
   } catch (e) {
