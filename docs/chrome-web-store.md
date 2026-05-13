@@ -15,6 +15,19 @@
    - `Test instructions` if review needs credentials or a test flow
 7. Submit for review. You can defer publishing after approval if you do not want the first release to go live immediately.
 
+### Privacy policy URL
+
+Chrome Web Store review should use a public privacy-policy URL because the extension handles financial/website content locally and stores user settings in Chrome storage.
+
+This repo includes:
+
+- `PRIVACY_POLICY.md` for the canonical text in the repository
+- `privacy-policy.html` for a public GitHub Pages version
+
+If GitHub Pages is enabled for this repository, the expected public URL is:
+
+`https://nisanb.github.io/etrade-rsu-israeli-tax-calculator/`
+
 ## Required listing assets
 
 - Extension icon in the package: `128x128`
@@ -51,6 +64,13 @@ Setup steps:
 6. In GitHub repository settings, add the JSON key as the `CHROME_WEBSTORE_SERVICE_ACCOUNT_JSON` secret.
 7. Add the extension ID from the Chrome Web Store item page as `CHROME_EXTENSION_ID`.
 8. Add the publisher ID from the Developer Dashboard settings as `CHROME_WEBSTORE_PUBLISHER_ID`.
+
+## One-time setup for the privacy policy URL
+
+1. In GitHub repository settings, open `Pages`.
+2. Set the source to `GitHub Actions`.
+3. Let the `Privacy Policy Pages` workflow run on `master`.
+4. Use the Pages URL in the Chrome Web Store `Privacy policy` field.
 
 ## Release behavior
 
