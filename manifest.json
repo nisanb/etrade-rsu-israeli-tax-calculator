@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "IL Tax Calculator for E*TRADE",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "Israeli Section 102 income track tax calculator for E*TRADE RSU holdings",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
@@ -14,8 +14,18 @@
     "js": ["calculator.js", "parser.js", "injector.js", "exchange-rate.js", "content.js"],
     "run_at": "document_idle"
   }],
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "IL Tax Calculator"
+    "default_title": "IL Tax Calculator",
+    "default_icon": {
+      "16":  "icons/icon16.png",
+      "48":  "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }
 }

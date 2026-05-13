@@ -24,8 +24,9 @@ function _discoverLots(data) {
       const lots = [];
       for (const grant of list) {
         if (Array.isArray(grant.childList)) {
+          const grantDateStr = grant.grantDate ?? grant.grantDateStr ?? grant.awardDate ?? grant.awardDateStr ?? grant.grantDay ?? null;
           for (const child of grant.childList) {
-            if ((child.sellableShares || 0) > 0) lots.push(child);
+            if ((child.sellableShares || 0) > 0) lots.push({ ...child, _grantDate: grantDateStr });
           }
         }
       }
@@ -89,7 +90,11 @@ function _mapLot(raw) {
     10
   );
 
-  return { grantId, vestDate, fmvAtVesting, sharesAvailable, symbol: raw.symbol || 'INTC' };
+  const grantDate = raw._grantDate
+    ? (_parseDMY(raw._grantDate) || (raw._grantDate ? new Date(raw._grantDate) : null))
+    : null;
+
+  return { grantId, vestDate, fmvAtVesting, sharesAvailable, symbol: raw.symbol || 'INTC', grantDate };
 }
 
 function _findMarketPrice(data) {
@@ -135,7 +140,16 @@ function parseStockPlanJson(data) {
   const rawLots = _discoverLots(data);
   const lots = rawLots.map(_mapLot);
 
-  return { marketPrice, lots };
+  // Build lookup: (vestDate timestamp + rounded FMV cents) → grant Date object
+  // Used by content.js to determine 2yr eligibility from grant date, not vest date.
+  const grantDateMap = new Map();
+  lots.forEach(lot => {
+    if (!lot.grantDate) return;
+    const key = lot.vestDate.getTime() + '_' + Math.round(lot.fmvAtVesting * 100);
+    grantDateMap.set(key, lot.grantDate);
+  });
+
+  return { marketPrice, lots, grantDateMap };
 }
 
 function parseStockPlanFromPage() {

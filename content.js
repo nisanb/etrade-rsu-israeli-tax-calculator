@@ -1,29 +1,5 @@
 // content.js
 
-// Injects a main-world script that fires 'il-tax-qty' whenever React sets a quantity input's value.
-// Content scripts run in an isolated world so cannot patch HTMLInputElement.prototype directly.
-function _patchMainWorldValueSetter() {
-  if (document.getElementById('il-tax-patch')) return;
-  const s = document.createElement('script');
-  s.id = 'il-tax-patch';
-  s.textContent = `(function() {
-    if (window.__ilTaxPatched) return;
-    window.__ilTaxPatched = true;
-    var orig = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
-    Object.defineProperty(HTMLInputElement.prototype, 'value', {
-      get: orig.get, configurable: true,
-      set: function(v) {
-        var prev = orig.get.call(this);
-        orig.set.call(this, v);
-        if (String(v) !== String(prev) && this.placeholder === '0' && this.classList.contains('form-control')) {
-          this.dispatchEvent(new CustomEvent('il-tax-qty', {bubbles: true}));
-        }
-      }
-    });
-  })()`;
-  (document.head || document.documentElement).appendChild(s);
-}
-
 // Parses 'MM/DD/YYYY' (E*TRADE vest date format) reliably without relying on Date string parsing.
 function _parseMDY(str) {
   if (!str) return new Date(0);
@@ -33,7 +9,6 @@ function _parseMDY(str) {
 }
 
 const STORAGE_DEFAULTS = {
-  sellPrice: null,
   incomeMode: 'flat',
   flatOrdinaryRate: 47,
   capitalGainsRate: 25,
@@ -44,7 +19,6 @@ const STORAGE_DEFAULTS = {
 };
 
 let settings = {
-  sellPrice: null,
   incomeMode: 'flat',
   flatOrdinaryRate: 0.47,
   capitalGainsRate: 0.25,
@@ -71,34 +45,22 @@ function _findSellableTable() {
   for (const sel of strategies) {
     try {
       const el = document.querySelector(sel);
-      if (el) {
-        console.log('[IL Tax] Table found via selector:', sel);
-        return el;
-      }
+      if (el) { console.log('[IL Tax] Table found via selector:', sel); return el; }
     } catch (e) {}
   }
-
-  // Last resort: any table on the page that has an input inside it
   const allTables = Array.from(document.querySelectorAll('table'));
-  console.log('[IL Tax] Specific selectors failed. Scanning', allTables.length, 'tables...');
   for (const t of allTables) {
-    const inputs = t.querySelectorAll('input');
-    if (inputs.length > 0) {
+    if (t.querySelectorAll('input').length > 0) {
       console.log('[IL Tax] Table found via input heuristic. Classes:', t.className);
       return t;
     }
-  }
-
-  if (allTables.length === 0) {
-    console.log('[IL Tax] No tables found on page yet — React may not have rendered.');
   }
   return null;
 }
 
 function recalculate() {
   if (!injectionResult || !parsedData) return;
-  const { handles, totalTaxCell, totalNetCell } = injectionResult;
-  const sellPrice = settings.sellPrice || parsedData.marketPrice;
+  const { handles, totalTaxCell, totalNetCell, totalSplitCell } = injectionResult;
   const now = new Date();
 
   let priorGainILS = 0;
@@ -107,46 +69,74 @@ function recalculate() {
   let totalTaxUSD = 0;
   let totalNetUSD = 0;
 
-  handles.forEach(({ row, taxCell, netCell, rateCell, dateText, fmvText }) => {
+  handles.forEach(({ row, taxCell, netCell, rateCell, splitCell }) => {
     // Re-query the input each time — React may replace the element between renders.
     const qtyInput = row.querySelector('input.form-control[placeholder="0"]');
     const qty = qtyInput ? (parseFloat(qtyInput.value) || 0) : 0;
 
-    // Read vest date and FMV directly from the DOM cells captured at injection time
+    // Read gross proceeds from the td immediately after the input's td — E*TRADE updates this live.
+    const inputTd = qtyInput ? qtyInput.closest('td') : null;
+    const proceedsTd = inputTd ? inputTd.nextElementSibling : null;
+    const proceedsText = proceedsTd ? proceedsTd.textContent.trim() : '';
+    const proceedsMatch = proceedsText.match(/[\d,]+\.?\d*/);
+    const grossUSD = qty > 0 && proceedsMatch ? parseFloat(proceedsMatch[0].replace(/,/g, '')) : 0;
+
+    // Read vest date and FMV dynamically — not captured at injection time to avoid stale data
+    // after React re-renders rows with different lot data.
+    const cells = row.querySelectorAll('td');
+    const dateText = cells[1] ? cells[1].textContent.trim() : '';
+    const fmvText  = cells[3] ? cells[3].textContent.trim() : '0';
+
     const vestDate = _parseMDY(dateText);
     const fmvMatch = fmvText.match(/[\d,]+\.?\d*/);
     const fmvAtVesting = fmvMatch ? parseFloat(fmvMatch[0].replace(',', '')) : 0;
 
-    if (qty <= 0 || !sellPrice) {
-      updateRowCells({ taxCell, netCell, rateCell },
-        { taxUSD: 0, netUSD: (sellPrice || 0) * qty, effectiveRate: 0, mode: 'zero',
+    if (qty <= 0 || grossUSD <= 0) {
+      updateRowCells({ taxCell, netCell, rateCell, splitCell },
+        { taxUSD: 0, netUSD: 0, effectiveRate: 0, mode: 'zero',
           currency: settings.currency, usdToILS: settings.usdToILS });
+      delete taxCell.dataset.ilTipData;
       return;
     }
 
-    const yearsSinceVesting = (now - vestDate) / (365.25 * 24 * 3600 * 1000);
-    const gainUSD = Math.max(0, (sellPrice - fmvAtVesting) * qty);
-    const grossUSD = sellPrice * qty;
+    // Section 102 income track:
+    //   benefitUSD = FMV × qty (ordinary income portion, always taxed at marginal rate)
+    //   appreciation = max(0, gross - benefit) (capital gain, taxed at 25% if ≥2yr)
+    const benefitUSD = fmvAtVesting * qty;
+
+    // 2yr clock runs from GRANT date (תאריך ההענקה), not vest date — look it up from parsed JSON.
+    const mapKey = vestDate.getTime() + '_' + Math.round(fmvAtVesting * 100);
+    const grantDate = parsedData.grantDateMap ? parsedData.grantDateMap.get(mapKey) : null;
+    const refDate = grantDate || vestDate;
+    const yearsSinceVesting = (now - refDate) / (365.25 * 24 * 3600 * 1000);
+    const grantDateText = grantDate ? grantDate.toLocaleDateString('en-US') : null;
 
     const result = calculateLotTax({
-      gainUSD, yearsSinceVesting, mode: settings.incomeMode,
+      grossUSD, benefitUSD, yearsSinceVesting, mode: settings.incomeMode,
       flatOrdinaryRate: settings.flatOrdinaryRate,
       capitalGainsRate: settings.capitalGainsRate,
       capitalGainsSurtax: settings.capitalGainsSurtax,
       usdToILS: settings.usdToILS,
-      residentCreditILS: settings.residentCreditILS,
       priorGainILS,
     });
 
     if (result.mode === 'bracket') {
       priorGainILS += result.gainILS || 0;
       totalBracketGrossILS += result.grossTaxILS || 0;
-      bracketHandles.push({ taxCell, netCell, rateCell, gainUSD, grossUSD, result });
+      bracketHandles.push({ taxCell, netCell, rateCell, splitCell, grossUSD, benefitUSD, result,
+        dateText, fmvAtVesting, qty, yearsSinceVesting, grantDateText });
     } else {
       const netUSD = grossUSD - result.taxUSD;
-      updateRowCells({ taxCell, netCell, rateCell },
+      updateRowCells({ taxCell, netCell, rateCell, splitCell },
         { taxUSD: result.taxUSD, netUSD, effectiveRate: result.effectiveRate,
           mode: result.mode, currency: settings.currency, usdToILS: settings.usdToILS });
+      taxCell.dataset.ilTipData = JSON.stringify({
+        dateText, fmvAtVesting, grossUSD, qty, benefitUSD, yearsSinceVesting, grantDateText,
+        taxUSD: result.taxUSD, ordinaryTaxUSD: result.ordinaryTaxUSD,
+        cgTaxUSD: result.cgTaxUSD, effectiveRate: result.effectiveRate,
+        mode: result.mode, usdToILS: settings.usdToILS,
+        ordinaryRate: settings.flatOrdinaryRate, cgRate: settings.capitalGainsRate,
+      });
       totalTaxUSD += result.taxUSD;
       totalNetUSD += netUSD;
     }
@@ -154,21 +144,31 @@ function recalculate() {
 
   if (bracketHandles.length > 0) {
     const netBracketTaxILS = Math.max(0, totalBracketGrossILS - settings.residentCreditILS);
-    bracketHandles.forEach(({ taxCell, netCell, rateCell, gainUSD, grossUSD, result }) => {
+    bracketHandles.forEach(({ taxCell, netCell, rateCell, splitCell, grossUSD, benefitUSD, result,
+        dateText, fmvAtVesting, qty, yearsSinceVesting, grantDateText }) => {
       const proportion = totalBracketGrossILS > 0 ? result.grossTaxILS / totalBracketGrossILS : 0;
-      const lotNetTaxILS = netBracketTaxILS * proportion;
-      const lotNetTaxUSD = lotNetTaxILS / settings.usdToILS;
+      const lotNetOrdinaryTaxILS = netBracketTaxILS * proportion;
+      const lotNetOrdinaryTaxUSD = lotNetOrdinaryTaxILS / settings.usdToILS;
+      const cgTaxUSD = result.cgTaxUSD || 0;
+      const lotNetTaxUSD = lotNetOrdinaryTaxUSD + cgTaxUSD;
       const netUSD = grossUSD - lotNetTaxUSD;
-      const effectiveRate = gainUSD > 0 ? lotNetTaxUSD / gainUSD : 0;
-      updateRowCells({ taxCell, netCell, rateCell },
+      const effectiveRate = grossUSD > 0 ? lotNetTaxUSD / grossUSD : 0;
+      updateRowCells({ taxCell, netCell, rateCell, splitCell },
         { taxUSD: lotNetTaxUSD, netUSD, effectiveRate, mode: 'bracket',
           currency: settings.currency, usdToILS: settings.usdToILS });
+      taxCell.dataset.ilTipData = JSON.stringify({
+        dateText, fmvAtVesting, grossUSD, qty, benefitUSD, yearsSinceVesting, grantDateText,
+        taxUSD: lotNetTaxUSD, ordinaryTaxUSD: lotNetOrdinaryTaxUSD, cgTaxUSD,
+        effectiveRate, mode: 'bracket',
+        usdToILS: settings.usdToILS, ordinaryRate: settings.flatOrdinaryRate,
+        cgRate: settings.capitalGainsRate,
+      });
       totalTaxUSD += lotNetTaxUSD;
       totalNetUSD += netUSD;
     });
   }
 
-  updateTotals(totalTaxCell, totalNetCell, totalTaxUSD, totalNetUSD, settings.currency, settings.usdToILS);
+  updateTotals(totalTaxCell, totalNetCell, totalSplitCell, totalTaxUSD, totalNetUSD, settings.currency, settings.usdToILS);
 }
 
 function tryInject() {
@@ -182,13 +182,13 @@ function tryInject() {
   }
 
   console.log('[IL Tax] Injecting into table. Market price:', parsedData.marketPrice);
-  table.dataset.ilTaxMarketPrice = parsedData.marketPrice != null ? String(parsedData.marketPrice) : 'null';
   injectionResult = injectColumns(table);
   if (!injectionResult) return;
 
   console.log('[IL Tax] Injected', injectionResult.handles.length, 'row handles');
+  _startQtyPoller();
 
-  // Capture phase (true) fires before E*TRADE's stopPropagation can block bubbling.
+  // Capture phase fires before E*TRADE's stopPropagation can block bubbling.
   table.addEventListener('input', recalculate, true);
   table.addEventListener('change', recalculate, true);
 
@@ -198,7 +198,6 @@ function tryInject() {
       ...stored,
       flatOrdinaryRate: (stored.flatOrdinaryRate ?? 47) / 100,
       capitalGainsRate: (stored.capitalGainsRate ?? 25) / 100,
-      sellPrice: stored.sellPrice || null,
     };
     if (typeof getExchangeRate === 'function') {
       getExchangeRate().then(rateData => {
@@ -209,6 +208,25 @@ function tryInject() {
       recalculate();
     }
   });
+}
+
+// Polls input values every 150ms to catch programmatic changes (e.g. E*TRADE "Select" button).
+// React captures the original HTMLInputElement.prototype.value setter before content scripts run,
+// so prototype patching is unreliable. Polling is the only reliable cross-React solution.
+let _qtyPollHandle = null;
+function _startQtyPoller() {
+  if (_qtyPollHandle !== null) return;
+  const snapshot = new Map();
+  _qtyPollHandle = setInterval(() => {
+    if (!injectionResult) return;
+    let changed = false;
+    injectionResult.handles.forEach(({ row }) => {
+      const input = row.querySelector('input.form-control[placeholder="0"]');
+      const val = input ? input.value : '';
+      if (snapshot.get(row) !== val) { snapshot.set(row, val); changed = true; }
+    });
+    if (changed) recalculate();
+  }, 150);
 }
 
 console.log('[IL Tax] Content script loaded. URL:', location.href);
