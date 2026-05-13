@@ -1,7 +1,6 @@
 // injector.js
-// Update SELLABLE_TABLE_SELECTOR and QTY_INPUT_SELECTOR after verifying on the live E*TRADE page (Task 8).
-const SELLABLE_TABLE_SELECTOR = 'table.et-table--sellable';
-const QTY_INPUT_SELECTOR = 'input[type="text"]';
+const SELLABLE_TABLE_SELECTOR = 'table.et-table--sellable'; // fallback; content.js uses _findSellableTable() first
+const QTY_INPUT_SELECTOR = 'input[type="number"], input[type="text"]';
 
 const IL_CLASS = 'il-tax-col';
 const STYLE_HEADER = 'background:#e8f5e9;color:#1b5e20;padding:5px 8px;font-size:11px;white-space:nowrap;border-top:2px solid #4caf50;';
