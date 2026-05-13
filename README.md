@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue.svg)](manifest.json)
-[![Version](https://img.shields.io/badge/version-1.0.5-brightgreen.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.0.6-brightgreen.svg)](manifest.json)
 
 A Chrome extension that overlays **Israeli Section 102 income-track tax estimates** directly onto the E*TRADE stock-plan holdings page. Enter a quantity to sell, and instantly see your estimated IL tax, net proceeds, and effective rate — per lot and in total.
 
@@ -103,9 +103,17 @@ No build step. Edit JS/CSS directly and reload the extension in `chrome://extens
 
 Run the test suite (Node.js):
 ```bash
-node tests/calculator.test.js
-node tests/parser.test.js
+node tests/test-calculator.js
+node tests/test-parser.js
+node tests/test-package-extension.js
 ```
+
+Package the extension for upload:
+```bash
+python3 scripts/package_extension.py --source . --output dist/il-tax-calculator-etrade.zip
+```
+
+Chrome Web Store submission and CI/CD setup notes live in [docs/chrome-web-store.md](docs/chrome-web-store.md).
 
 ---
 
