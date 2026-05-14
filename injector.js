@@ -27,7 +27,7 @@ const POPUP_CSS = `
 .ilp-vest{padding:12px 16px;background:#f8fdf8;border-bottom:1px solid #e8f5e9}
 .ilp-vest-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:4px}
 .ilp-vest-date{font-size:12px;color:#666}
-.ilp-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
+.ilp-badge{font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px}
 .ilp-badge-g{background:#e8f5e9;color:#2e7d32}
 .ilp-badge-o{background:#fff3e0;color:#e65100}
 .ilp-vest-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
@@ -63,6 +63,7 @@ const POPUP_CSS = `
 .ilp-bar-lbls{display:flex;justify-content:space-between;font-size:11px;font-weight:600}
 .ilp-lbl-tax{color:#ef5350}
 .ilp-lbl-net{color:#43a047}
+.il-tax-info{font-size:10px;color:#7b8fa6;margin-left:4px;vertical-align:super;cursor:pointer;}
 `;
 
 function _ensurePopup() {
@@ -144,7 +145,10 @@ function _renderAndShowPopup(d, triggerRect) {
     </div>
     <div class="ilp-vest">
       <div class="ilp-vest-top">
-        <span class="ilp-vest-date">Vested ${d.dateText}${d.grantDateText ? ' · Grant: ' + d.grantDateText : ''} · ${d.yearsSinceVesting.toFixed(1)} yrs from ${d.grantDateText ? 'grant' : 'vest'}</span>
+        <div class="ilp-vest-date">
+          <div>Vest date: ${d.dateText}</div>
+          ${d.grantDateText ? `<div>Grant date: ${d.grantDateText} · ${d.yearsSinceVesting.toFixed(1)} yrs ${is2yr ? '✓≥2yr' : '✗&lt;2yr'}</div>` : `<div>${d.yearsSinceVesting.toFixed(1)} yrs from vest</div>`}
+        </div>
         <span class="ilp-badge ${is2yr ? 'ilp-badge-g' : 'ilp-badge-o'}">${is2yr ? '✓ ≥2yr' : '✗ &lt;2yr'}</span>
       </div>
       <div class="ilp-vest-grid">
@@ -294,7 +298,11 @@ function _td(extraStyle = '') {
 }
 
 function updateRowCells({ taxCell, netCell, rateCell, splitCell }, { taxUSD, netUSD, effectiveRate, mode, currency, usdToILS }) {
-  taxCell.textContent  = _fmt(taxUSD, currency, usdToILS);
+  if (mode !== 'zero') {
+    taxCell.innerHTML = `<span class="il-tax-amt">${_fmt(taxUSD, currency, usdToILS)}</span><span class="il-tax-info" title="Click for tax breakdown">ⓘ</span>`;
+  } else {
+    taxCell.textContent = '—';
+  }
   netCell.textContent  = _fmt(netUSD, currency, usdToILS);
   taxCell.style.color  = '#c0392b';
   taxCell.style.cursor = mode !== 'zero' ? 'pointer' : 'default';

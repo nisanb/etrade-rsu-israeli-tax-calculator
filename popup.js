@@ -129,4 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('rateSource').textContent = 'Fetch failed — using cached';
     }
   });
+  document.getElementById('goToHoldings').addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://us.etrade.com/etx/sp/stockplan#/myAccount/stockPlans' });
+  });
 });
