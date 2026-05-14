@@ -69,6 +69,10 @@ function recalculate() {
   let totalTaxUSD = 0;
   let totalNetUSD = 0;
 
+  // Tracks how many rows we've processed per vest date — needed to pick the correct
+  // grant date when multiple grants vest on the same day (same key in grantDateMap).
+  const vestDateCounters = new Map();
+
   handles.forEach(({ row, taxCell, netCell, rateCell, splitCell }) => {
     // Re-query the input each time — React may replace the element between renders.
     const qtyInput = row.querySelector('input.form-control[placeholder="0"]');
@@ -105,11 +109,17 @@ function recalculate() {
     const benefitUSD = fmvAtVesting * qty;
 
     // 2yr clock runs from GRANT date (תאריך ההענקה), not vest date — look it up from parsed JSON.
-    const mapKey = vestDate.getTime() + '_' + Math.round(fmvAtVesting * 100);
-    const grantDate = parsedData.grantDateMap ? parsedData.grantDateMap.get(mapKey) : null;
+    // grantDateMap is keyed by vest date timestamp; value is an ordered array of grant dates
+    // (one per grant vesting on that date, in the same order as table rows).
+    const mapKey = vestDate.getTime().toString();
+    const grantDateArr = parsedData.grantDateMap ? parsedData.grantDateMap.get(mapKey) : null;
+    const vestIdx = vestDateCounters.get(mapKey) || 0;
+    vestDateCounters.set(mapKey, vestIdx + 1);
+    const grantDate = grantDateArr ? (grantDateArr[vestIdx] ?? grantDateArr[0] ?? null) : null;
     const refDate = grantDate || vestDate;
     const yearsSinceVesting = (now - refDate) / (365.25 * 24 * 3600 * 1000);
     const grantDateText = grantDate ? grantDate.toLocaleDateString('en-US') : null;
+    console.log('[IL Tax] Row:', dateText, '| vestIdx:', vestIdx, '| grantDate:', grantDateText, '| years:', yearsSinceVesting.toFixed(2));
 
     const result = calculateLotTax({
       grossUSD, benefitUSD, yearsSinceVesting, mode: settings.incomeMode,

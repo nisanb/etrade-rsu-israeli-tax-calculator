@@ -11,6 +11,44 @@ function _parseDMY(str) {
   return new Date(parseInt(m[3], 10), mo, parseInt(m[1], 10));
 }
 
+// Extracts the grant date string from a parent grant object.
+// Tries all known E*TRADE field names, then falls back to scanning all string-valued
+// fields whose name contains "grant", "award", "start", or "issue" for a date pattern.
+function _extractGrantDate(grant) {
+  // Known field names (expand as new E*TRADE JSON shapes are discovered)
+  const knownFields = [
+    'grantDate', 'grantDateStr', 'grantDateForDisplay', 'grantDay',
+    'planGrantDate', 'planStartDate', 'grantStartDate', 'grantEffectiveDate',
+    'awardDate', 'awardDateStr', 'awardDay', 'awardStartDate',
+    'offerDate', 'startDate', 'issueDate', 'issuanceDate',
+    'rsuGrantDate', 'stockGrantDate', 'equityGrantDate',
+  ];
+  for (const f of knownFields) {
+    if (grant[f] && typeof grant[f] === 'string') return grant[f];
+  }
+
+  // Heuristic: scan all string fields whose key hints at a grant/award/start date
+  const DATE_PAT = /\d{1,2}[-/]\w{2,3}[-/]\d{2,4}/i;
+  for (const [k, v] of Object.entries(grant)) {
+    if (typeof v !== 'string') continue;
+    const kl = k.toLowerCase();
+    if (!kl.includes('grant') && !kl.includes('award') && !kl.includes('start') && !kl.includes('issue')) continue;
+    if (DATE_PAT.test(v)) return v;
+  }
+
+  // Fallback: scan ALL string fields on the grant object for a date-like value
+  // and prefer the earliest one (grant dates are old; vest dates are recent).
+  let earliest = null;
+  let earliestDate = null;
+  for (const [k, v] of Object.entries(grant)) {
+    if (typeof v !== 'string' || k === 'planId' || k === 'symbol') continue;
+    const parsed = _parseDMY(v) || (v.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/) ? new Date(v) : null);
+    if (!parsed || isNaN(parsed.getTime())) continue;
+    if (!earliestDate || parsed < earliestDate) { earliestDate = parsed; earliest = v; }
+  }
+  return earliest;
+}
+
 function _discoverLots(data) {
   console.log('[IL Tax] stockplanjson keys:', Object.keys(data).join(', '));
 
@@ -24,7 +62,8 @@ function _discoverLots(data) {
       const lots = [];
       for (const grant of list) {
         if (Array.isArray(grant.childList)) {
-          const grantDateStr = grant.grantDate ?? grant.grantDateStr ?? grant.awardDate ?? grant.awardDateStr ?? grant.grantDay ?? null;
+          const grantDateStr = _extractGrantDate(grant);
+          console.log('[IL Tax] Grant keys:', Object.keys(grant).join(', '), '| grantDateStr:', grantDateStr);
           for (const child of grant.childList) {
             if ((child.sellableShares || 0) > 0) lots.push({ ...child, _grantDate: grantDateStr });
           }
@@ -140,14 +179,18 @@ function parseStockPlanJson(data) {
   const rawLots = _discoverLots(data);
   const lots = rawLots.map(_mapLot);
 
-  // Build lookup: (vestDate timestamp + rounded FMV cents) → grant Date object
-  // Used by content.js to determine 2yr eligibility from grant date, not vest date.
+  // Build lookup: vestDate timestamp → ordered array of grant Dates.
+  // Keyed by vest date only (not FMV) — FMV from DOM cells is unreliable as a key.
+  // Multiple grants can vest on the same date, so we preserve insertion order and
+  // content.js picks by positional index (same order as table rows).
   const grantDateMap = new Map();
   lots.forEach(lot => {
     if (!lot.grantDate) return;
-    const key = lot.vestDate.getTime() + '_' + Math.round(lot.fmvAtVesting * 100);
-    grantDateMap.set(key, lot.grantDate);
+    const key = lot.vestDate.getTime().toString();
+    if (!grantDateMap.has(key)) grantDateMap.set(key, []);
+    grantDateMap.get(key).push(lot.grantDate);
   });
+  console.log('[IL Tax] grantDateMap entries:', grantDateMap.size, '| has data:', [...grantDateMap.entries()].map(([k, v]) => new Date(+k).toLocaleDateString() + ':' + v.length).join(', '));
 
   return { marketPrice, lots, grantDateMap };
 }
