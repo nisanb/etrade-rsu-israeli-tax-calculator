@@ -144,7 +144,7 @@ function recalculate() {
         dateText, fmvAtVesting, grossUSD, qty, benefitUSD, yearsSinceVesting, grantDateText,
         taxUSD: result.taxUSD, ordinaryTaxUSD: result.ordinaryTaxUSD,
         cgTaxUSD: result.cgTaxUSD, effectiveRate: result.effectiveRate,
-        mode: result.mode, usdToILS: settings.usdToILS,
+        mode: result.mode, usdToILS: settings.usdToILS, currency: settings.currency,
         ordinaryRate: settings.flatOrdinaryRate, cgRate: settings.capitalGainsRate,
       });
       totalTaxUSD += result.taxUSD;
@@ -170,8 +170,8 @@ function recalculate() {
         dateText, fmvAtVesting, grossUSD, qty, benefitUSD, yearsSinceVesting, grantDateText,
         taxUSD: lotNetTaxUSD, ordinaryTaxUSD: lotNetOrdinaryTaxUSD, cgTaxUSD,
         effectiveRate, mode: 'bracket',
-        usdToILS: settings.usdToILS, ordinaryRate: settings.flatOrdinaryRate,
-        cgRate: settings.capitalGainsRate,
+        usdToILS: settings.usdToILS, currency: settings.currency,
+        ordinaryRate: settings.flatOrdinaryRate, cgRate: settings.capitalGainsRate,
       });
       totalTaxUSD += lotNetTaxUSD;
       totalNetUSD += netUSD;
