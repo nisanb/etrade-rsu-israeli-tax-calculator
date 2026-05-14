@@ -130,6 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   document.getElementById('goToHoldings').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://us.etrade.com/etx/sp/stockplan#/myAccount/stockPlans' });
+    chrome.tabs.create({ url: 'https://us.etrade.com/etx/sp/stockplan#/sell' });
   });
 });
