@@ -44,10 +44,12 @@ jobs:
           path: dist/il-tax-calculator-etrade-${{ steps.version.outputs.value }}.zip
 
       - name: Publish to Chrome Web Store
-        uses: fregante/chrome-webstore-action@v2
-        with:
-          client-id: ${{ secrets.CHROME_CLIENT_ID }}
-          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
-          zip-path: dist/il-tax-calculator-etrade-${{ steps.version.outputs.value }}.zip
+        env:
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+        run: |
+          npx chrome-webstore-upload-cli \
+            --source dist/il-tax-calculator-etrade-${{ steps.version.outputs.value }}.zip \
+            --extension-id "$EXTENSION_ID"
