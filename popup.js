@@ -55,6 +55,8 @@ function _rateLabel(rateData) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('appVersion').textContent = 'v' + chrome.runtime.getManifest().version;
+
   chrome.storage.sync.get(DEFAULTS, (s) => {
     document.getElementById('flatOrdinaryRate').value   = s.flatOrdinaryRate;
     document.getElementById('capitalGainsRate').value   = s.capitalGainsRate;
