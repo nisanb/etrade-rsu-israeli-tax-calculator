@@ -53,7 +53,6 @@ jobs:
         run: |
           SOURCE="dist/il-tax-calculator-etrade-${{ steps.version.outputs.value }}.zip"
 
-          # First attempt
           set +e
           npx chrome-webstore-upload-cli \
             --source "$SOURCE" \
@@ -66,29 +65,18 @@ jobs:
             exit 0
           fi
 
-          # If blocked by an in-review submission, revoke it and retry
+          # The Chrome Web Store API does not expose a cancel/revoke endpoint.
+          # When a prior version is in review, skip publish gracefully so CI
+          # stays green (tests passed, artifact uploaded). To unblock: open
+          # https://chrome.google.com/webstore/devconsole, cancel the review
+          # manually, then re-run this workflow via Actions → workflow_dispatch.
           if grep -qi "in review" /tmp/publish_out.txt; then
-            echo "Item is in review — revoking current submission..."
-
-            TOKEN=$(curl -s -X POST https://oauth2.googleapis.com/token \
-              -d "client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&refresh_token=${REFRESH_TOKEN}&grant_type=refresh_token" \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-
-            curl -s -X POST \
-              "https://www.googleapis.com/chromewebstore/v1.1/items/${EXTENSION_ID}/revoke" \
-              -H "Authorization: Bearer $TOKEN" \
-              -H "Content-Length: 0"
-
-            echo "Revoke sent — waiting 15s for store to process..."
-            sleep 15
-
-            echo "Retrying publish..."
-            npx chrome-webstore-upload-cli \
-              --source "$SOURCE" \
-              --extension-id "$EXTENSION_ID" \
-              --publisher-id "$PUBLISHER_ID"
-          else
-            echo "Publish failed for an unexpected reason:"
-            cat /tmp/publish_out.txt
-            exit 1
+            echo "⚠️  Publish skipped: a prior version is currently in Google's review queue."
+            echo "   To publish now: cancel the review in the Chrome Web Store Developer Console,"
+            echo "   then re-run this workflow manually (Actions → Run workflow)."
+            exit 0
           fi
+
+          echo "Publish failed:"
+          cat /tmp/publish_out.txt
+          exit 1
