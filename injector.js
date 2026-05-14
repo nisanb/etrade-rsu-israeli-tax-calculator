@@ -98,8 +98,13 @@ function _ensurePopup() {
 }
 
 function _renderAndShowPopup(d, triggerRect) {
-  const f  = n => Math.abs(Math.round(n)).toLocaleString('en-US');
-  const fi = n => Math.abs(Math.round(n * d.usdToILS)).toLocaleString('en-US');
+  const isILS = d.currency === 'ILS';
+  const fu  = n => '$' + Math.abs(Math.round(n)).toLocaleString('en-US');
+  const fil = n => '₪' + Math.abs(Math.round(n * d.usdToILS)).toLocaleString('en-US');
+  // fp = primary currency, fs = secondary (dimmed)
+  const fp  = n => isILS ? fil(n) : fu(n);
+  const fs  = n => isILS ? fu(n) : fil(n);
+
   const is2yr = d.yearsSinceVesting >= 2;
   const netUSD = d.grossUSD - d.taxUSD;
   const ordinaryBase = Math.min(d.grossUSD, d.benefitUSD);
@@ -115,23 +120,23 @@ function _renderAndShowPopup(d, triggerRect) {
     taxRows = `
       <div class="ilp-tr">
         <div class="ilp-tr-hd"><span class="ilp-tr-name">Ordinary income</span><span class="ilp-tr-hint">FMV × qty</span></div>
-        <div class="ilp-tr-basis">basis: $${f(ordinaryBase)} / ₪${fi(ordinaryBase)}</div>
+        <div class="ilp-tr-basis">basis: ${fp(ordinaryBase)} <span class="ilp-tr-ils">/ ${fs(ordinaryBase)}</span></div>
         <div class="ilp-tr-tax"><span>Tax @ ${ordPct}%</span>
-          <span class="ilp-tr-amt">−$${f(d.ordinaryTaxUSD)} <span class="ilp-tr-ils">/ −₪${fi(d.ordinaryTaxUSD)}</span></span></div>
+          <span class="ilp-tr-amt">−${fp(d.ordinaryTaxUSD)} <span class="ilp-tr-ils">/ −${fs(d.ordinaryTaxUSD)}</span></span></div>
       </div>
       <div class="ilp-tr">
         <div class="ilp-tr-hd"><span class="ilp-tr-name">Capital gain</span><span class="ilp-tr-hint">above FMV</span></div>
-        <div class="ilp-tr-basis">basis: $${f(cgBase)} / ₪${fi(cgBase)}</div>
+        <div class="ilp-tr-basis">basis: ${fp(cgBase)} <span class="ilp-tr-ils">/ ${fs(cgBase)}</span></div>
         <div class="ilp-tr-tax"><span>Tax @ ${cgPct}%</span>
-          <span class="ilp-tr-amt">−$${f(d.cgTaxUSD)} <span class="ilp-tr-ils">/ −₪${fi(d.cgTaxUSD)}</span></span></div>
+          <span class="ilp-tr-amt">−${fp(d.cgTaxUSD)} <span class="ilp-tr-ils">/ −${fs(d.cgTaxUSD)}</span></span></div>
       </div>`;
   } else {
     taxRows = `
       <div class="ilp-tr">
         <div class="ilp-tr-hd"><span class="ilp-tr-name">Ordinary income</span><span class="ilp-tr-hint">entire gross, &lt;2yr</span></div>
-        <div class="ilp-tr-basis">basis: $${f(d.grossUSD)} / ₪${fi(d.grossUSD)}</div>
+        <div class="ilp-tr-basis">basis: ${fp(d.grossUSD)} <span class="ilp-tr-ils">/ ${fs(d.grossUSD)}</span></div>
         <div class="ilp-tr-tax"><span>Tax @ ${ordPct}%</span>
-          <span class="ilp-tr-amt">−$${f(d.taxUSD)} <span class="ilp-tr-ils">/ −₪${fi(d.taxUSD)}</span></span></div>
+          <span class="ilp-tr-amt">−${fp(d.taxUSD)} <span class="ilp-tr-ils">/ −${fs(d.taxUSD)}</span></span></div>
       </div>`;
   }
 
@@ -157,7 +162,7 @@ function _renderAndShowPopup(d, triggerRect) {
         <div><div class="ilp-k">Quantity</div><div class="ilp-v">${d.qty} shares</div></div>
         <div><div class="ilp-k">USD/ILS rate</div><div class="ilp-v">₪${d.usdToILS}</div></div>
       </div>
-      <div class="ilp-gross">Gross proceeds: <strong>$${f(d.grossUSD)}</strong> <span class="ilp-sub">/ ₪${fi(d.grossUSD)}</span></div>
+      <div class="ilp-gross">Gross proceeds: <strong>${fp(d.grossUSD)}</strong> <span class="ilp-sub">/ ${fs(d.grossUSD)}</span></div>
     </div>
     <div class="ilp-bd">
       <div class="ilp-sec">Tax Breakdown</div>
@@ -165,13 +170,13 @@ function _renderAndShowPopup(d, triggerRect) {
       <div class="ilp-div"></div>
       <div class="ilp-total">
         <span class="ilp-total-lbl">Total tax (est.)</span>
-        <span class="ilp-total-amt">−$${f(d.taxUSD)} <span class="ilp-tr-ils">/ −₪${fi(d.taxUSD)}</span></span>
+        <span class="ilp-total-amt">−${fp(d.taxUSD)} <span class="ilp-tr-ils">/ −${fs(d.taxUSD)}</span></span>
       </div>
     </div>
     <div class="ilp-net">
       <div class="ilp-net-lbl">Net proceeds</div>
-      <div class="ilp-net-val">$${f(netUSD)}</div>
-      <div class="ilp-net-ils">₪${fi(netUSD)}</div>
+      <div class="ilp-net-val">${fp(netUSD)}</div>
+      <div class="ilp-net-ils">${fs(netUSD)}</div>
     </div>
     <div class="ilp-bar-sec">
       <div class="ilp-bar">
@@ -212,8 +217,12 @@ function _renderAndShowPopup(d, triggerRect) {
 }
 
 function _popupCopyText(d) {
-  const f  = n => Math.abs(Math.round(n)).toLocaleString('en-US');
-  const fi = n => Math.abs(Math.round(n * d.usdToILS)).toLocaleString('en-US');
+  const isILS = d.currency === 'ILS';
+  const fu  = n => '$' + Math.abs(Math.round(n)).toLocaleString('en-US');
+  const fil = n => '₪' + Math.abs(Math.round(n * d.usdToILS)).toLocaleString('en-US');
+  const fp  = n => isILS ? fil(n) : fu(n);
+  const fs  = n => isILS ? fu(n) : fil(n);
+  const dual = n => `${fp(n)} / ${fs(n)}`;
   const is2yr = d.yearsSinceVesting >= 2;
   const netUSD = d.grossUSD - d.taxUSD;
   const ordinaryBase = Math.min(d.grossUSD, d.benefitUSD);
@@ -224,20 +233,20 @@ function _popupCopyText(d) {
   const lines = [
     `IL Tax Breakdown — Vested ${d.dateText}${d.grantDateText ? ' · Grant: ' + d.grantDateText : ''} (${d.yearsSinceVesting.toFixed(1)} yrs from ${d.grantDateText ? 'grant' : 'vest'}, ${is2yr ? '≥2yr ✓' : '<2yr ✗'})`,
     `FMV at vest: $${d.fmvAtVesting.toFixed(2)}/sh  |  Sell: $${(d.grossUSD/d.qty).toFixed(2)}/sh  |  Qty: ${d.qty}`,
-    `Gross proceeds: $${f(d.grossUSD)} / ₪${fi(d.grossUSD)}`,
+    `Gross proceeds: ${dual(d.grossUSD)}`,
     ``,
   ];
   if (is2yr) {
-    lines.push(`Ordinary income (FMV × qty): $${f(ordinaryBase)} / ₪${fi(ordinaryBase)}`);
-    lines.push(`  Tax @ ${ordPct}%: −$${f(d.ordinaryTaxUSD)} / −₪${fi(d.ordinaryTaxUSD)}`);
-    lines.push(`Capital gain (above FMV): $${f(cgBase)} / ₪${fi(cgBase)}`);
-    lines.push(`  Tax @ ${cgPct}%: −$${f(d.cgTaxUSD)} / −₪${fi(d.cgTaxUSD)}`);
+    lines.push(`Ordinary income (FMV × qty): ${dual(ordinaryBase)}`);
+    lines.push(`  Tax @ ${ordPct}%: −${dual(d.ordinaryTaxUSD)}`);
+    lines.push(`Capital gain (above FMV): ${dual(cgBase)}`);
+    lines.push(`  Tax @ ${cgPct}%: −${dual(d.cgTaxUSD)}`);
   } else {
-    lines.push(`Ordinary income (entire gross): $${f(d.grossUSD)} / ₪${fi(d.grossUSD)}`);
-    lines.push(`  Tax @ ${ordPct}%: −$${f(d.taxUSD)} / −₪${fi(d.taxUSD)}`);
+    lines.push(`Ordinary income (entire gross): ${dual(d.grossUSD)}`);
+    lines.push(`  Tax @ ${ordPct}%: −${dual(d.taxUSD)}`);
   }
-  lines.push(`Total tax: −$${f(d.taxUSD)} / −₪${fi(d.taxUSD)}  (${taxPct}%)`);
-  lines.push(`Net proceeds: $${f(netUSD)} / ₪${fi(netUSD)}`);
+  lines.push(`Total tax: −${dual(d.taxUSD)}  (${taxPct}%)`);
+  lines.push(`Net proceeds: ${dual(netUSD)}`);
   return lines.join('\n');
 }
 
