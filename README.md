@@ -40,7 +40,7 @@ A Chrome extension that overlays **Israeli Section 102 income-track tax estimate
 2. Open Chrome → `chrome://extensions`
 3. Enable **Developer mode** (top-right toggle)
 4. Click **Load unpacked** → select the repo folder
-5. Navigate to `https://us.etrade.com/etx/sp/stockplan#/myAccount/stockPlans`
+5. Navigate to `https://us.etrade.com/etx/sp/stockplan#/sell`
 6. The IL Tax columns appear automatically in the RSU holdings table
 
 ---
