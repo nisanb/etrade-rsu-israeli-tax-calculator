@@ -20,29 +20,31 @@ assert(near(bracketTaxForAmount(100000, IL_BRACKETS_2026), 10635.2), '₪100k �
 assert(near(bracketTaxForAmount(750000, IL_BRACKETS_2026), 238383.6, 5), '₪750k → into 50% bracket');
 
 console.log('\n--- calculateLotTax: capital gains (≥2yr) ---');
-const cg = calculateLotTax({ gainUSD: 10000, yearsSinceVesting: 2.5, mode: 'flat',
+// All appreciation above FMV: benefitUSD=0 so ordinaryBase=0, cgBase=grossUSD
+const cg = calculateLotTax({ grossUSD: 10000, benefitUSD: 0, yearsSinceVesting: 2.5, mode: 'flat',
   flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
-  usdToILS: 3.65, residentCreditILS: 7986, priorGainILS: 0 });
+  usdToILS: 3.65, priorGainILS: 0 });
 assert(near(cg.taxUSD, 2500), 'CG 25%, $10k → $2,500 tax');
 assert(cg.mode === 'capital-gains', 'mode=capital-gains');
 
-const cgSurtax = calculateLotTax({ gainUSD: 10000, yearsSinceVesting: 3, mode: 'flat',
+const cgSurtax = calculateLotTax({ grossUSD: 10000, benefitUSD: 0, yearsSinceVesting: 3, mode: 'flat',
   flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: true,
-  usdToILS: 3.65, residentCreditILS: 7986, priorGainILS: 0 });
+  usdToILS: 3.65, priorGainILS: 0 });
 assert(near(cgSurtax.taxUSD, 2800), 'CG 25%+3% surtax, $10k → $2,800');
 
 console.log('\n--- calculateLotTax: flat ordinary (<2yr) ---');
-const flat = calculateLotTax({ gainUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
+// <2yr: entire gross taxed at ordinary rate regardless of benefitUSD
+const flat = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
   flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
-  usdToILS: 3.65, residentCreditILS: 7986, priorGainILS: 0 });
+  usdToILS: 3.65, priorGainILS: 0 });
 assert(near(flat.taxUSD, 4700), 'Flat 47%, $10k → $4,700');
 assert(flat.mode === 'flat-ordinary', 'mode=flat-ordinary');
 
 console.log('\n--- calculateLotTax: bracket mode, first lot, no prior ---');
 // $10k × 3.65 = ₪36,500 → 10% = ₪3,650 gross bracket tax
-const brk1 = calculateLotTax({ gainUSD: 10000, yearsSinceVesting: 1, mode: 'bracket',
+const brk1 = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'bracket',
   flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
-  usdToILS: 3.65, residentCreditILS: 7986, priorGainILS: 0 });
+  usdToILS: 3.65, priorGainILS: 0 });
 assert(near(brk1.grossTaxILS, 3650), 'Bracket first lot ₪36.5k → grossTaxILS ₪3,650');
 assert(brk1.mode === 'bracket', 'mode=bracket');
 
@@ -51,15 +53,15 @@ console.log('\n--- calculateLotTax: bracket mode, second lot (priorGainILS=₪80
 // taxOnTotal(₪98,250) = 10%×84120 + 14%×14130 = 8412 + 1978.2 = 10390.2
 // taxOnPrior(₪80k)   = 10%×80000 = 8000
 // grossTaxILS = 10390.2 - 8000 = 2390.2
-const brk2 = calculateLotTax({ gainUSD: 5000, yearsSinceVesting: 1, mode: 'bracket',
+const brk2 = calculateLotTax({ grossUSD: 5000, benefitUSD: 5000, yearsSinceVesting: 1, mode: 'bracket',
   flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
-  usdToILS: 3.65, residentCreditILS: 7986, priorGainILS: 80000 });
+  usdToILS: 3.65, priorGainILS: 80000 });
 assert(near(brk2.grossTaxILS, 2390.2, 1), 'Bracket second lot, ₪80k prior → marginal ₪2,390');
 
-console.log('\n--- zero gain ---');
-const zero = calculateLotTax({ gainUSD: 0, yearsSinceVesting: 1, mode: 'flat',
+console.log('\n--- zero gross ---');
+const zero = calculateLotTax({ grossUSD: 0, benefitUSD: 0, yearsSinceVesting: 1, mode: 'flat',
   flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
-  usdToILS: 3.65, residentCreditILS: 7986, priorGainILS: 0 });
+  usdToILS: 3.65, priorGainILS: 0 });
 assert(zero.taxUSD === 0, 'zero gain → zero tax');
 
 console.log(`\n${passed} passed, ${failed} failed`);
