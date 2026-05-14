@@ -189,3 +189,21 @@ input[type="number"]:focus, .full-input:focus {
 }
 
 .hidden { display: none !important; }
+
+.go-btn {
+  display: block;
+  width: 100%;
+  background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+  margin-bottom: 10px;
+  transition: opacity 0.15s;
+}
+.go-btn:hover { opacity: 0.88; }

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome — IL Tax Calculator for E*TRADE</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f1f8e9;
+      color: #1b2a1b;
+      min-height: 100vh;
+      padding: 32px 16px 48px;
+    }
+    .container { max-width: 680px; margin: 0 auto; }
+    header {
+      text-align: center;
+      padding-bottom: 28px;
+      border-bottom: 2px solid #a5d6a7;
+      margin-bottom: 32px;
+    }
+    header .flag { font-size: 48px; line-height: 1; margin-bottom: 10px; }
+    header h1 { font-size: 24px; font-weight: 700; color: #1b5e20; margin-bottom: 6px; }
+    header p { font-size: 14px; color: #4a6a4a; }
+    h2 { font-size: 17px; font-weight: 700; color: #1b5e20; margin-bottom: 14px; }
+    .steps { display: flex; flex-direction: column; gap: 16px; margin-bottom: 28px; }
+    .step {
+      background: #fff;
+      border: 1px solid #c8e6c9;
+      border-radius: 10px;
+      padding: 18px 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .step-num {
+      background: #1b5e20;
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-body h3 { font-size: 15px; font-weight: 700; color: #1b5e20; margin-bottom: 5px; }
+    .step-body p { font-size: 13px; color: #3a4a3a; line-height: 1.55; }
+    .btn {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: #1b5e20;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:hover { background: #2e7d32; }
+    .card {
+      background: #fff;
+      border: 1px solid #c8e6c9;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .rule-grid { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+    .rule-pill {
+      flex: 1;
+      min-width: 200px;
+      background: #e8f5e9;
+      border: 1px solid #a5d6a7;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #1b2a1b;
+      line-height: 1.5;
+    }
+    .rule-pill strong { display: block; color: #1b5e20; margin-bottom: 4px; }
+    .links { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .links a {
+      flex: 1;
+      min-width: 180px;
+      background: #fff;
+      border: 1px solid #c8e6c9;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #1b5e20;
+      font-weight: 600;
+      text-decoration: none;
+      text-align: center;
+    }
+    .links a:hover { background: #e8f5e9; }
+    .disclaimer {
+      font-size: 11px;
+      color: #7a8a7a;
+      line-height: 1.55;
+      border-top: 1px solid #c8e6c9;
+      padding-top: 16px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <div class="flag">🇮🇱</div>
+      <h1>IL Tax Calculator for E*TRADE</h1>
+      <p>Israeli Section 102 RSU tax estimates — right inside your E*TRADE holdings page.</p>
+    </header>
+
+    <h2>Getting Started — 3 Steps</h2>
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Navigate to E*TRADE</h3>
+          <p>Go to your E*TRADE stock plan page. The extension activates automatically on that page — no setup required.</p>
+          <a class="btn" href="https://us.etrade.com/etx/sp/stockplan#/myAccount/stockPlans" target="_blank" rel="noopener">
+            Open E*TRADE Stock Plans
+          </a>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>View Your RSU Holdings</h3>
+          <p>The extension automatically adds <strong>IL Tax</strong>, <strong>Net Proceeds</strong>, and <strong>Rate</strong> columns to your sellable holdings table. Type a quantity in the Qty to Sell field to see real-time calculations update instantly.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Click Any IL Tax Cell</h3>
+          <p>Click any value in the IL Tax column to see a full breakdown: ordinary income vs. capital gains split, ILS amounts at the current exchange rate, and an easy <strong>Copy</strong> button to paste into a spreadsheet or report.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card">
+      <h2>The 2-Year Rule (Section 102)</h2>
+      <p style="font-size:13px;color:#3a4a3a;margin-bottom:10px;">
+        Israeli tax treatment depends on how long ago the RSUs were granted:
+      </p>
+      <div class="rule-grid">
+        <div class="rule-pill">
+          <strong>≥ 2 years from grant date</strong>
+          Capital gains track — 25% flat tax on the full gain.
+        </div>
+        <div class="rule-pill">
+          <strong>&lt; 2 years from grant date</strong>
+          Ordinary income track — marginal rates apply to the full proceeds.
+        </div>
+      </div>
+    </div>
+
+    <div class="links">
+      <a href="https://github.com/nisanb/etrade-rsu-israeli-tax-calculator" target="_blank" rel="noopener">
+        View Source on GitHub
+      </a>
+      <a href="https://github.com/nisanb/etrade-rsu-israeli-tax-calculator/issues" target="_blank" rel="noopener">
+        Questions? Open an Issue
+      </a>
+    </div>
+
+    <p class="disclaimer">
+      Estimates only. Not financial or legal advice. Consult a qualified Israeli tax professional before making any tax decisions.
+    </p>
+
+  </div>
+</body>
+</html>
