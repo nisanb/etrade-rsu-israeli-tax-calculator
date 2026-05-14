@@ -51,7 +51,44 @@ jobs:
           EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
           PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
         run: |
+          SOURCE="dist/il-tax-calculator-etrade-${{ steps.version.outputs.value }}.zip"
+
+          # First attempt
+          set +e
           npx chrome-webstore-upload-cli \
-            --source dist/il-tax-calculator-etrade-${{ steps.version.outputs.value }}.zip \
+            --source "$SOURCE" \
             --extension-id "$EXTENSION_ID" \
-            --publisher-id "$PUBLISHER_ID"
+            --publisher-id "$PUBLISHER_ID" 2>&1 | tee /tmp/publish_out.txt
+          PUBLISH_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          if [ $PUBLISH_EXIT -eq 0 ]; then
+            exit 0
+          fi
+
+          # If blocked by an in-review submission, revoke it and retry
+          if grep -qi "in review" /tmp/publish_out.txt; then
+            echo "Item is in review — revoking current submission..."
+
+            TOKEN=$(curl -s -X POST https://oauth2.googleapis.com/token \
+              -d "client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&refresh_token=${REFRESH_TOKEN}&grant_type=refresh_token" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+            curl -s -X POST \
+              "https://www.googleapis.com/chromewebstore/v1.1/items/${EXTENSION_ID}/revoke" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Length: 0"
+
+            echo "Revoke sent — waiting 15s for store to process..."
+            sleep 15
+
+            echo "Retrying publish..."
+            npx chrome-webstore-upload-cli \
+              --source "$SOURCE" \
+              --extension-id "$EXTENSION_ID" \
+              --publisher-id "$PUBLISHER_ID"
+          else
+            echo "Publish failed for an unexpected reason:"
+            cat /tmp/publish_out.txt
+            exit 1
+          fi
