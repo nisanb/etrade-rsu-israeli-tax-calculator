@@ -196,5 +196,49 @@ const hypGe2yr = calculateLotTax({ grossUSD: 10000, benefitUSD: 6000, yearsSince
 assert(hypGe2yr.hypotheticalTwoYearTaxUSD === undefined || hypGe2yr.hypotheticalTwoYearTaxUSD === null,
   '≥2yr result: hypotheticalTwoYearTaxUSD is null or omitted');
 
+console.log('\n--- YTD income context: bracket mode <2yr shifts to higher marginal rate ---');
+// priorGainILS=0: ₪36,500 → 10% bracket → ₪3,650 gross tax
+const ytdZero = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'bracket',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+// priorGainILS=500000: already deep in 35%+ brackets; same ₪36,500 lot taxed at much higher marginal rate
+const ytdHighIncome = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'bracket',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 500000 });
+assert(ytdHighIncome.grossTaxILS > ytdZero.grossTaxILS,
+  'Bracket <2yr: priorGainILS=500k produces higher grossTaxILS than priorGainILS=0');
+// With ₪500k prior, the lot lands in the 35% bracket (₪301k–₪560k)
+// taxOnTotal(₪536,500) = bracketTax up to 35% bracket; taxOnPrior(₪500k)=35% range
+// marginal rate should be 35%, so grossTaxILS ≈ 36500×0.35 = ₪12,775
+assert(near(ytdHighIncome.grossTaxILS, 12775, 50),
+  'Bracket <2yr, priorGainILS=500k: grossTaxILS ≈ ₪12,775 (35% marginal)');
+
+console.log('\n--- YTD income context: bracket mode ≥2yr ordinary portion shifts upward ---');
+// grossUSD=10000, benefitUSD=6000 (ordinary), appreciation=4000 (CG)
+// priorGainILS=0: ordinaryILS=6000×3.65=₪21,900 → 10% bracket → grossTaxILS ≈ ₪2,190
+const ytdGe2Zero = calculateLotTax({ grossUSD: 10000, benefitUSD: 6000, yearsSinceVesting: 2.5, mode: 'bracket',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+// priorGainILS=500000: same ordinary portion taxed at 35% marginal
+const ytdGe2High = calculateLotTax({ grossUSD: 10000, benefitUSD: 6000, yearsSinceVesting: 2.5, mode: 'bracket',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 500000 });
+assert(ytdGe2High.grossTaxILS > ytdGe2Zero.grossTaxILS,
+  'Bracket ≥2yr: priorGainILS=500k raises ordinary grossTaxILS above priorGainILS=0');
+// CG portion is unaffected by priorGainILS — cgTaxUSD should be the same in both
+assert(near(ytdGe2High.cgTaxUSD, ytdGe2Zero.cgTaxUSD, 0.01),
+  'Bracket ≥2yr: cgTaxUSD is unchanged by priorGainILS');
+
+console.log('\n--- YTD income context: flat mode ignores priorGainILS (regression guard) ---');
+// In flat mode, priorGainILS must have zero effect on the result
+const flatNoYtd = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+const flatWithYtd = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 500000 });
+assert(near(flatNoYtd.taxUSD, flatWithYtd.taxUSD, 0.01),
+  'Flat mode: priorGainILS=500k does not change taxUSD (regression guard)');
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
