@@ -23,9 +23,11 @@
       <div class="card">
         <div class="card-label">Tax Mode</div>
         <div class="toggle-group">
-          <button class="toggle-btn" id="modeFlat">Has income this year</button>
-          <button class="toggle-btn" id="modeBracket">Brackets only</button>
+          <button class="toggle-btn" id="modeFlat">Flat marginal rate</button>
+          <button class="toggle-btn" id="modeBracket">Apply 2026 IL brackets</button>
         </div>
+        <p class="mode-hint" id="hintFlat">Use this if you know your marginal income tax rate — e.g., your payslip already puts you in the 47% bracket.</p>
+        <p class="mode-hint hidden" id="hintBracket">Use this if RSU sales are your main IL income this year. The 2026 brackets are applied directly and the annual resident credit is subtracted.</p>
       </div>
 
       <div class="card" id="flatSection">
