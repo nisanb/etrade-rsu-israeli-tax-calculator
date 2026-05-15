@@ -188,6 +188,13 @@ input[type="number"]:focus, .full-input:focus {
   line-height: 1.5;
 }
 
+.mode-hint {
+  font-size: 10px;
+  color: #9eabb8;
+  line-height: 1.5;
+  margin-top: 7px;
+}
+
 .hidden { display: none !important; }
 
 .go-btn {

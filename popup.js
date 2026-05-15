@@ -33,6 +33,8 @@ function _setMode(mode) {
   document.getElementById('modeBracket').classList.toggle('active', mode === 'bracket');
   document.getElementById('flatSection').classList.toggle('hidden', mode !== 'flat');
   document.getElementById('bracketSection').classList.toggle('hidden', mode !== 'bracket');
+  document.getElementById('hintFlat').classList.toggle('hidden', mode !== 'flat');
+  document.getElementById('hintBracket').classList.toggle('hidden', mode !== 'bracket');
   _updateRateRowVisibility();
 }
 
