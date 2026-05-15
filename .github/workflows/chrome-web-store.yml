@@ -40,7 +40,41 @@ jobs:
           name: chrome-extension-${{ steps.version.outputs.value }}
           path: dist/il-tax-calculator-etrade-${{ steps.version.outputs.value }}.zip
 
+      - name: Check if version is new
+        id: publish_check
+        env:
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+        run: |
+          TOKEN=$(curl -s -X POST https://oauth2.googleapis.com/token \
+            -d "client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&refresh_token=${REFRESH_TOKEN}&grant_type=refresh_token" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+          # v1.1 'get item' returns crxVersion; equivalent v2 endpoint can also work
+          PUBLISHED=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/${EXTENSION_ID}?projection=DRAFT" \
+            | python3 -c "
+          try:
+              import sys,json
+              d = json.load(sys.stdin)
+              print(d.get('crxVersion', ''))
+          except Exception:
+              print('')" 2>/dev/null)
+
+          CURRENT="${{ steps.version.outputs.value }}"
+
+          if [ -n "$PUBLISHED" ] && [ "$PUBLISHED" = "$CURRENT" ]; then
+            echo "Version $CURRENT already published. Skipping publish step."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Will publish: manifest=$CURRENT, store=${PUBLISHED:-unknown}"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to Chrome Web Store
+        if: steps.publish_check.outputs.skip != 'true'
         env:
           CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
