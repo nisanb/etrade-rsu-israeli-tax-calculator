@@ -26,10 +26,7 @@ jobs:
         run: echo "value=$(node -p "require('./manifest.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Run tests
-        run: |
-          node tests/test-calculator.js
-          node tests/test-parser.js
-          node tests/test-package-extension.js
+        run: npm ci && npm test
 
       - name: Package extension
         run: |
