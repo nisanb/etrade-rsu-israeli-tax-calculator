@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue.svg)](manifest.json)
-[![Version](https://img.shields.io/badge/version-1.2.0-brightgreen.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.2.1-brightgreen.svg)](manifest.json)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Install-blue?logo=googlechrome)](https://chromewebstore.google.com/detail/il-tax-calculator-for-etr/nofodmdhjbijfieiapcpaoiadhekoknd)
 
 A Chrome extension that overlays **Israeli Section 102 income-track tax estimates** directly onto the E*TRADE stock-plan holdings page. Enter a quantity to sell, and instantly see your estimated IL tax, net proceeds, and effective rate — per lot and in total.
