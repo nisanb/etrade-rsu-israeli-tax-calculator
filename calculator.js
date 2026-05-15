@@ -71,13 +71,26 @@ function calculateLotTax({
     return { taxUSD, ordinaryTaxUSD, cgTaxUSD, capitalLossUSD, grossTaxILS, gainILS: ordinaryILS, effectiveRate: taxUSD / grossUSD, mode: 'capital-gains' };
   }
 
-  // <2yr: ordinary income tax on entire gross proceeds
+  // <2yr: ordinary income tax on entire gross proceeds.
+  // We also compute hypotheticalTwoYearTaxUSD — what the tax *would* be under ≥2yr rules
+  // at the same sell price. The ordinary portion shrinks to min(gross, benefit) instead of
+  // full gross, so bracket stacking is lighter. This value is used by the UI to show the
+  // cost of selling before the 2yr cliff and the savings from waiting.
+
   if (mode === 'flat') {
     // §121b surtax applies to all income above ₪721,560/yr, not just capital gains.
     // In flat mode we add it explicitly; bracket mode already encodes it in the 50% top bracket.
     const effectiveOrdinaryRate = flatOrdinaryRate + (capitalGainsSurtax ? 0.03 : 0);
     const taxUSD = grossUSD * effectiveOrdinaryRate;
-    return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, capitalLossUSD: 0, effectiveRate: effectiveOrdinaryRate, mode: 'flat-ordinary' };
+
+    // Hypothetical ≥2yr: ordinary on min(gross, benefit), CG at 25%+surtax on appreciation
+    const hypOrdinaryBase = Math.min(grossUSD, benefitUSD);
+    const hypCgBase = Math.max(0, grossUSD - benefitUSD);
+    const hypOrdinaryTaxUSD = hypOrdinaryBase * effectiveOrdinaryRate;
+    const hypCgTaxUSD = hypCgBase * cgRate;
+    const hypotheticalTwoYearTaxUSD = hypOrdinaryTaxUSD + hypCgTaxUSD;
+
+    return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, capitalLossUSD: 0, effectiveRate: effectiveOrdinaryRate, mode: 'flat-ordinary', hypotheticalTwoYearTaxUSD };
   }
 
   // <2yr bracket mode
@@ -85,5 +98,15 @@ function calculateLotTax({
   const grossTaxILS = bracketTaxForAmount(priorGainILS + grossILS, IL_BRACKETS_2026)
                     - bracketTaxForAmount(priorGainILS, IL_BRACKETS_2026);
   const taxUSD = grossTaxILS / usdToILS;
-  return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, capitalLossUSD: 0, grossTaxILS, gainILS: grossILS, effectiveRate: grossUSD > 0 ? taxUSD / grossUSD : 0, mode: 'bracket' };
+
+  // Hypothetical ≥2yr in bracket mode: ordinary base is min(gross, benefit); CG is always flat.
+  const hypOrdinaryILS = Math.min(grossUSD, benefitUSD) * usdToILS;
+  const hypGrossTaxILS = bracketTaxForAmount(priorGainILS + hypOrdinaryILS, IL_BRACKETS_2026)
+                       - bracketTaxForAmount(priorGainILS, IL_BRACKETS_2026);
+  const hypOrdinaryTaxUSD = hypGrossTaxILS / usdToILS;
+  const hypCgBase = Math.max(0, grossUSD - benefitUSD);
+  const hypCgTaxUSD = hypCgBase * cgRate;
+  const hypotheticalTwoYearTaxUSD = hypOrdinaryTaxUSD + hypCgTaxUSD;
+
+  return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, capitalLossUSD: 0, grossTaxILS, gainILS: grossILS, effectiveRate: grossUSD > 0 ? taxUSD / grossUSD : 0, mode: 'bracket', hypotheticalTwoYearTaxUSD };
 }

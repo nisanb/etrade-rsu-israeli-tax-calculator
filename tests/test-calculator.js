@@ -148,5 +148,53 @@ assert(near(lossBrk.capitalLossUSD, 5000), '≥2yr bracket sell<FMV: capitalLoss
 assert(near(lossBrk.cgTaxUSD, 0), '≥2yr bracket sell<FMV: cgTaxUSD = 0');
 assert(near(lossBrk.grossTaxILS, 1825), '≥2yr bracket sell<FMV: grossTaxILS ≈ ₪1,825 (tax math unchanged)');
 
+console.log('\n--- hypotheticalTwoYearTaxUSD: <2yr flat, sell price == FMV (no appreciation) ---');
+// $10k gross, $10k benefit (sell at FMV): no CG under ≥2yr rules
+// hypothetical ordinary = min(10000, 10000)×0.47 = $4,700; hypothetical CG = max(0, 10000-10000)×0.25 = $0
+// hypotheticalTwoYearTaxUSD = $4,700 (same as actual, since no appreciation)
+const hypFlatAtFMV = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(hypFlatAtFMV.hypotheticalTwoYearTaxUSD, 4700), '<2yr flat, sell=FMV: hyp tax = $4,700 (all ordinary)');
+assert(near(hypFlatAtFMV.taxUSD, 4700), '<2yr flat, sell=FMV: actual tax = $4,700');
+
+console.log('\n--- hypotheticalTwoYearTaxUSD: <2yr flat, sell price above FMV (appreciation) ---');
+// $15k gross, $10k benefit: under ≥2yr rules ordinary=$10k×0.47=$4,700; CG=$5k×0.25=$1,250; total=$5,950
+// actual <2yr: $15k×0.47=$7,050 — savings by waiting = $7,050-$5,950=$1,100
+const hypFlatAboveFMV = calculateLotTax({ grossUSD: 15000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(hypFlatAboveFMV.taxUSD, 7050), '<2yr flat, sell>FMV: actual tax = $7,050');
+assert(near(hypFlatAboveFMV.hypotheticalTwoYearTaxUSD, 5950), '<2yr flat, sell>FMV: hyp tax = $5,950 (ordinary+CG)');
+
+console.log('\n--- hypotheticalTwoYearTaxUSD: <2yr flat with §121b surtax, sell above FMV ---');
+// $15k gross, $10k benefit, surtax on
+// actual <2yr: $15k×(0.47+0.03)=$15k×0.50=$7,500
+// hyp ≥2yr: ordinary=$10k×0.50=$5,000; CG=$5k×(0.25+0.03)=$5k×0.28=$1,400; total=$6,400
+const hypFlatSurtax = calculateLotTax({ grossUSD: 15000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: true,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(hypFlatSurtax.taxUSD, 7500), '<2yr flat surtax on, sell>FMV: actual = $7,500');
+assert(near(hypFlatSurtax.hypotheticalTwoYearTaxUSD, 6400), '<2yr flat surtax on, sell>FMV: hyp = $6,400 (50% ordinary + 28% CG)');
+
+console.log('\n--- hypotheticalTwoYearTaxUSD: <2yr bracket mode, sell above FMV ---');
+// $15k gross ($15k×3.65=₪54,750), $10k benefit ($10k×3.65=₪36,500), priorGainILS=0
+// actual <2yr bracket: tax on ₪54,750 = 10%×54750 = ₪5,475; taxUSD = 5475/3.65 ≈ $1,500
+// hyp ≥2yr bracket: ordinary ₪36,500 → 10%×36500=₪3,650; ordTaxUSD=3650/3.65=$1,000; CG=$5k×0.25=$1,250; hypTotal≈$2,250
+const hypBrk = calculateLotTax({ grossUSD: 15000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'bracket',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(hypBrk.taxUSD, 1500, 5), '<2yr bracket, sell>FMV: actual tax ≈ $1,500');
+assert(near(hypBrk.hypotheticalTwoYearTaxUSD, 2250, 5), '<2yr bracket, sell>FMV: hyp ≈ $2,250 (bracket ordinary + flat CG)');
+// Note: hyp > actual here because the stock appreciated a lot and CG pushes total higher — this is
+// a low-bracket scenario. In typical high-bracket cases, hyp < actual.
+
+console.log('\n--- hypotheticalTwoYearTaxUSD: ≥2yr result — field is null ---');
+const hypGe2yr = calculateLotTax({ grossUSD: 10000, benefitUSD: 6000, yearsSinceVesting: 2.5, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(hypGe2yr.hypotheticalTwoYearTaxUSD === undefined || hypGe2yr.hypotheticalTwoYearTaxUSD === null,
+  '≥2yr result: hypotheticalTwoYearTaxUSD is null or omitted');
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
