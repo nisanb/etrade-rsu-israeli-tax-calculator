@@ -117,6 +117,13 @@ function _renderAndShowPopup(d, triggerRect) {
 
   let taxRows;
   if (is2yr) {
+    const capitalLossUSD = d.capitalLossUSD || 0;
+    const lossRow = capitalLossUSD > 0 ? `
+      <div class="ilp-tr">
+        <div class="ilp-tr-hd"><span class="ilp-tr-name">Capital loss</span><span class="ilp-tr-hint">FMV − sell</span></div>
+        <div class="ilp-tr-tax"><span>Reportable; offsets future gains</span>
+          <span class="ilp-tr-amt" style="color:#7b8fa6;">−${fp(capitalLossUSD)} <span class="ilp-tr-ils">/ −${fs(capitalLossUSD)}</span></span></div>
+      </div>` : '';
     taxRows = `
       <div class="ilp-tr">
         <div class="ilp-tr-hd"><span class="ilp-tr-name">Ordinary income</span><span class="ilp-tr-hint">FMV × qty</span></div>
@@ -129,7 +136,8 @@ function _renderAndShowPopup(d, triggerRect) {
         <div class="ilp-tr-basis">basis: ${fp(cgBase)} <span class="ilp-tr-ils">/ ${fs(cgBase)}</span></div>
         <div class="ilp-tr-tax"><span>Tax @ ${cgPct}%</span>
           <span class="ilp-tr-amt">−${fp(d.cgTaxUSD)} <span class="ilp-tr-ils">/ −${fs(d.cgTaxUSD)}</span></span></div>
-      </div>`;
+      </div>
+      ${lossRow}`;
   } else {
     taxRows = `
       <div class="ilp-tr">
@@ -237,10 +245,14 @@ function _popupCopyText(d) {
     ``,
   ];
   if (is2yr) {
+    const capitalLossUSD = d.capitalLossUSD || 0;
     lines.push(`Ordinary income (FMV × qty): ${dual(ordinaryBase)}`);
     lines.push(`  Tax @ ${ordPct}%: −${dual(d.ordinaryTaxUSD)}`);
     lines.push(`Capital gain (above FMV): ${dual(cgBase)}`);
     lines.push(`  Tax @ ${cgPct}%: −${dual(d.cgTaxUSD)}`);
+    if (capitalLossUSD > 0) {
+      lines.push(`Capital loss (FMV − sell): −${dual(capitalLossUSD)} (reportable; offsets future gains)`);
+    }
   } else {
     lines.push(`Ordinary income (entire gross): ${dual(d.grossUSD)}`);
     lines.push(`  Tax @ ${ordPct}%: −${dual(d.taxUSD)}`);
@@ -367,9 +379,12 @@ function updateStatusCell(statusCell, { grantDate, yearsSinceGrant }) {
   }
 }
 
-function updateRowCells({ taxCell, netCell, rateCell, splitCell }, { taxUSD, netUSD, effectiveRate, mode, currency, usdToILS }) {
+function updateRowCells({ taxCell, netCell, rateCell, splitCell }, { taxUSD, netUSD, effectiveRate, mode, currency, usdToILS, capitalLossUSD }) {
   if (mode !== 'zero') {
-    taxCell.innerHTML = `<span class="il-tax-amt">${_fmt(taxUSD, currency, usdToILS)}</span><span class="il-tax-info" title="Click for tax breakdown">ⓘ</span>`;
+    const lossIndicator = (mode === 'capital-gains' && capitalLossUSD > 0)
+      ? `<span style="display:block;font-size:10px;color:#7b8fa6;margin-top:1px;">↓ ${_fmt(capitalLossUSD, currency, usdToILS)} loss</span>`
+      : '';
+    taxCell.innerHTML = `<span class="il-tax-amt">${_fmt(taxUSD, currency, usdToILS)}</span><span class="il-tax-info" title="Click for tax breakdown">ⓘ</span>${lossIndicator}`;
   } else {
     taxCell.textContent = '—';
   }

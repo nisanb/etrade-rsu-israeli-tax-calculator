@@ -52,12 +52,14 @@ function calculateLotTax({
     const cgBase = Math.max(0, grossUSD - benefitUSD);
     const cgTaxUSD = cgBase * cgRate;
 
+    const capitalLossUSD = Math.max(0, benefitUSD - grossUSD);
+
     if (mode === 'flat') {
       // §121b surtax applies to all income above ₪721,560/yr, not just capital gains.
       // In flat mode we add it explicitly; bracket mode already encodes it in the 50% top bracket.
       const ordinaryTaxUSD = ordinaryBase * (flatOrdinaryRate + (capitalGainsSurtax ? 0.03 : 0));
       const taxUSD = ordinaryTaxUSD + cgTaxUSD;
-      return { taxUSD, ordinaryTaxUSD, cgTaxUSD, effectiveRate: taxUSD / grossUSD, mode: 'capital-gains' };
+      return { taxUSD, ordinaryTaxUSD, cgTaxUSD, capitalLossUSD, effectiveRate: taxUSD / grossUSD, mode: 'capital-gains' };
     }
 
     // Bracket mode: marginal brackets on ordinary portion only; CG is always flat
@@ -66,7 +68,7 @@ function calculateLotTax({
                       - bracketTaxForAmount(priorGainILS, IL_BRACKETS_2026);
     const ordinaryTaxUSD = grossTaxILS / usdToILS;
     const taxUSD = ordinaryTaxUSD + cgTaxUSD;
-    return { taxUSD, ordinaryTaxUSD, cgTaxUSD, grossTaxILS, gainILS: ordinaryILS, effectiveRate: taxUSD / grossUSD, mode: 'capital-gains' };
+    return { taxUSD, ordinaryTaxUSD, cgTaxUSD, capitalLossUSD, grossTaxILS, gainILS: ordinaryILS, effectiveRate: taxUSD / grossUSD, mode: 'capital-gains' };
   }
 
   // <2yr: ordinary income tax on entire gross proceeds
@@ -75,7 +77,7 @@ function calculateLotTax({
     // In flat mode we add it explicitly; bracket mode already encodes it in the 50% top bracket.
     const effectiveOrdinaryRate = flatOrdinaryRate + (capitalGainsSurtax ? 0.03 : 0);
     const taxUSD = grossUSD * effectiveOrdinaryRate;
-    return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, effectiveRate: effectiveOrdinaryRate, mode: 'flat-ordinary' };
+    return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, capitalLossUSD: 0, effectiveRate: effectiveOrdinaryRate, mode: 'flat-ordinary' };
   }
 
   // <2yr bracket mode
@@ -83,5 +85,5 @@ function calculateLotTax({
   const grossTaxILS = bracketTaxForAmount(priorGainILS + grossILS, IL_BRACKETS_2026)
                     - bracketTaxForAmount(priorGainILS, IL_BRACKETS_2026);
   const taxUSD = grossTaxILS / usdToILS;
-  return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, grossTaxILS, gainILS: grossILS, effectiveRate: grossUSD > 0 ? taxUSD / grossUSD : 0, mode: 'bracket' };
+  return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, capitalLossUSD: 0, grossTaxILS, gainILS: grossILS, effectiveRate: grossUSD > 0 ? taxUSD / grossUSD : 0, mode: 'bracket' };
 }
