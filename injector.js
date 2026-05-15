@@ -259,7 +259,7 @@ function injectColumns(table) {
 
   const headerRow = table.querySelector('thead tr');
   if (headerRow) {
-    ['IL Tax', 'Net Proceeds', 'Rate', 'Tax vs Net'].forEach(label => {
+    ['Status', 'IL Tax', 'Net Proceeds', 'Rate', 'Tax vs Net'].forEach(label => {
       const th = document.createElement('th');
       th.textContent = label;
       th.className = IL_CLASS;
@@ -272,15 +272,17 @@ function injectColumns(table) {
   table.querySelectorAll('tbody tr').forEach(row => {
     const qtyInput = row.querySelector(QTY_INPUT_SELECTOR);
     if (!qtyInput) return;
+    const statusCell = _td('min-width:72px;');
     const taxCell = _td(), netCell = _td(), rateCell = _td(), splitCell = _td('min-width:110px;');
-    taxCell.textContent = netCell.textContent = rateCell.textContent = '—';
-    row.append(taxCell, netCell, rateCell, splitCell);
+    statusCell.textContent = taxCell.textContent = netCell.textContent = rateCell.textContent = '—';
+    row.append(statusCell, taxCell, netCell, rateCell, splitCell);
     // dateText/fmvText are NOT captured here — read dynamically in recalculate()
     // so stale injection data doesn't corrupt rows after React re-renders.
-    handles.push({ row, qtyInput, taxCell, netCell, rateCell, splitCell });
+    handles.push({ row, qtyInput, statusCell, taxCell, netCell, rateCell, splitCell });
   });
 
-  const existingCols = headerRow ? headerRow.querySelectorAll('th').length - 4 : 5;
+  // existingCols excludes our 5 injected columns (Status + IL Tax + Net + Rate + Tax vs Net)
+  const existingCols = headerRow ? headerRow.querySelectorAll('th').length - 5 : 5;
   const totalsRow = document.createElement('tr');
   totalsRow.className = IL_CLASS + '-totals';
   totalsRow.style.cssText = STYLE_TOTALS_ROW;
@@ -288,11 +290,12 @@ function injectColumns(table) {
   spacer.colSpan = existingCols;
   spacer.style.cssText = 'text-align:right;padding:5px 8px;color:#555;font-size:11px;';
   spacer.textContent = 'TOTAL after IL Tax';
+  const totalStatusCell = _td('background:#c8e6c9;');
   const totalTaxCell = _td('background:#c8e6c9;color:#c0392b;');
   const totalNetCell = _td('background:#c8e6c9;color:#1b5e20;');
   const totalRateCell = _td('background:#c8e6c9;');
   const totalSplitCell = _td('background:#c8e6c9;min-width:110px;');
-  totalsRow.append(spacer, totalTaxCell, totalNetCell, totalRateCell, totalSplitCell);
+  totalsRow.append(spacer, totalStatusCell, totalTaxCell, totalNetCell, totalRateCell, totalSplitCell);
   const tbody = table.querySelector('tbody');
   if (tbody) tbody.appendChild(totalsRow);
 
@@ -304,6 +307,24 @@ function _td(extraStyle = '') {
   td.className = IL_CLASS;
   td.style.cssText = STYLE_CELL + extraStyle;
   return td;
+}
+
+const SECTION102_TOOLTIP = 'Israeli Section 102 income track. Lots held ≥2 years from grant date qualify for 25% capital gains on appreciation; <2 years are taxed at full ordinary rates.';
+
+function updateStatusCell(statusCell, { grantDate, yearsSinceGrant }) {
+  if (!grantDate) {
+    statusCell.textContent = '—';
+    statusCell.title = '';
+    statusCell.style.background = STYLE_CELL.includes('background') ? '' : '';
+    return;
+  }
+  const is2yr = yearsSinceGrant >= 2;
+  statusCell.title = SECTION102_TOOLTIP;
+  if (is2yr) {
+    statusCell.innerHTML = '<span style="display:inline-block;background:#e8f5e9;color:#2e7d32;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;">✓ ≥2yr</span>';
+  } else {
+    statusCell.innerHTML = '<span style="display:inline-block;background:#fff3e0;color:#e65100;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;">⚠ <2yr</span>';
+  }
 }
 
 function updateRowCells({ taxCell, netCell, rateCell, splitCell }, { taxUSD, netUSD, effectiveRate, mode, currency, usdToILS }) {
