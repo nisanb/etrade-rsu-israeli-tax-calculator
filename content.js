@@ -14,6 +14,7 @@ const STORAGE_DEFAULTS = {
   capitalGainsRate: 25,
   capitalGainsSurtax: false,
   residentCreditILS: 7986,
+  ytdTaxableIncomeILS: 0,
   usdToILS: 3.65,
   currency: 'USD',
 };
@@ -24,6 +25,7 @@ let settings = {
   capitalGainsRate: 0.25,
   capitalGainsSurtax: false,
   residentCreditILS: 7986,
+  ytdTaxableIncomeILS: 0,
   usdToILS: 3.65,
   currency: 'USD',
 };
@@ -63,7 +65,9 @@ function recalculate() {
   const { handles, totalTaxCell, totalNetCell, totalSplitCell } = injectionResult;
   const now = new Date();
 
-  let priorGainILS = 0;
+  let priorGainILS = settings.incomeMode === 'bracket'
+    ? (settings.ytdTaxableIncomeILS || 0)
+    : 0;
   let totalBracketGrossILS = 0;
   const bracketHandles = [];
   let totalTaxUSD = 0;

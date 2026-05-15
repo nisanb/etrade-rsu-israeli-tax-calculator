@@ -6,6 +6,7 @@ const DEFAULTS = {
   incomeMode: 'flat',
   flatOrdinaryRate: 47, capitalGainsRate: 25,
   capitalGainsSurtax: false, residentCreditILS: 7986,
+  ytdTaxableIncomeILS: 0,
   usdToILS: 3.65, currency: 'USD',
 };
 
@@ -63,8 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('flatOrdinaryRate').value   = s.flatOrdinaryRate;
     document.getElementById('capitalGainsRate').value   = s.capitalGainsRate;
     document.getElementById('capitalGainsSurtax').checked = s.capitalGainsSurtax;
-    document.getElementById('residentCreditILS').value  = s.residentCreditILS;
-    document.getElementById('usdToILS').value           = s.usdToILS;
+    document.getElementById('residentCreditILS').value      = s.residentCreditILS;
+    document.getElementById('ytdTaxableIncomeILS').value    = s.ytdTaxableIncomeILS;
+    document.getElementById('usdToILS').value               = s.usdToILS;
     _setMode(s.incomeMode);
     _setCurrency(s.currency);
   });
@@ -109,6 +111,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('residentCreditILS').addEventListener('input', e => {
     _sendToContent({ residentCreditILS: parseFloat(e.target.value) || 0 });
+  });
+  document.getElementById('ytdTaxableIncomeILS').addEventListener('input', e => {
+    _sendToContent({ ytdTaxableIncomeILS: parseFloat(e.target.value) || 0 });
   });
   document.getElementById('usdToILS').addEventListener('input', e => {
     const rate = parseFloat(e.target.value);
