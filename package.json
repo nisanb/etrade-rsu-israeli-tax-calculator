@@ -1,0 +1,11 @@
+{
+  "name": "il-tax-calculator-etrade",
+  "private": true,
+  "version": "1.2.0",
+  "scripts": {
+    "test": "for f in tests/test-*.js; do node \"$f\" || exit 1; done"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0"
+  }
+}
