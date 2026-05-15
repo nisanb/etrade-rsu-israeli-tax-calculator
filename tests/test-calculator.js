@@ -110,5 +110,43 @@ assert(near(brkSurtaxOn.grossTaxILS, brkSurtaxOff.grossTaxILS, 0.01),
   'Bracket <2yr: surtax flag does not change bracket tax (no double-count)');
 assert(near(brkSurtaxOn.grossTaxILS, 3650), 'Bracket <2yr surtax on: grossTaxILS still ₪3,650');
 
+console.log('\n--- capitalLossUSD: ≥2yr flat, sell below FMV ---');
+// grossUSD=5000, benefitUSD=10000: sell price fell below FMV
+// ordinaryBase = min(5000,10000) = 5000; cgBase = max(0,5000-10000) = 0
+// capitalLossUSD = max(0, 10000-5000) = 5000
+// ordinaryTaxUSD = 5000 × 0.47 = 2350; cgTaxUSD = 0
+const lossFlat = calculateLotTax({ grossUSD: 5000, benefitUSD: 10000, yearsSinceVesting: 2.5, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(lossFlat.capitalLossUSD, 5000), '≥2yr flat sell<FMV: capitalLossUSD = 5000');
+assert(near(lossFlat.cgTaxUSD, 0), '≥2yr flat sell<FMV: cgTaxUSD = 0');
+assert(near(lossFlat.ordinaryTaxUSD, 2350), '≥2yr flat sell<FMV: ordinaryTaxUSD = $2,350');
+assert(lossFlat.mode === 'capital-gains', '≥2yr flat sell<FMV: mode=capital-gains');
+
+console.log('\n--- capitalLossUSD: ≥2yr flat, sell above FMV (regression guard) ---');
+// grossUSD=15000, benefitUSD=10000: appreciation → no loss
+const noLossFlat = calculateLotTax({ grossUSD: 15000, benefitUSD: 10000, yearsSinceVesting: 2.5, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(noLossFlat.capitalLossUSD, 0), '≥2yr flat sell>FMV: capitalLossUSD = 0');
+assert(near(noLossFlat.cgTaxUSD, 1250), '≥2yr flat sell>FMV: cgTaxUSD = $1,250 (5k×25%)');
+
+console.log('\n--- capitalLossUSD: <2yr flat — field exists, value is 0 ---');
+const lt2Loss = calculateLotTax({ grossUSD: 5000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(lt2Loss.capitalLossUSD === 0, '<2yr flat: capitalLossUSD field exists and equals 0');
+assert(lt2Loss.mode === 'flat-ordinary', '<2yr flat: mode=flat-ordinary');
+
+console.log('\n--- capitalLossUSD: ≥2yr bracket, sell below FMV ---');
+// grossUSD=5000, benefitUSD=10000; ordinaryBase=5000; capitalLossUSD=5000
+// ordinaryILS = 5000×3.65 = ₪18,250; grossTaxILS = bracketTax(18250) = 10%×18250 = ₪1,825
+const lossBrk = calculateLotTax({ grossUSD: 5000, benefitUSD: 10000, yearsSinceVesting: 2.5, mode: 'bracket',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(lossBrk.capitalLossUSD, 5000), '≥2yr bracket sell<FMV: capitalLossUSD = 5000');
+assert(near(lossBrk.cgTaxUSD, 0), '≥2yr bracket sell<FMV: cgTaxUSD = 0');
+assert(near(lossBrk.grossTaxILS, 1825), '≥2yr bracket sell<FMV: grossTaxILS ≈ ₪1,825 (tax math unchanged)');
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
