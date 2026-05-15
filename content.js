@@ -191,6 +191,7 @@ function tryInject() {
   parsedData = parseStockPlanFromPage();
   if (!parsedData) {
     console.log('[IL Tax] parseStockPlanFromPage returned null — stockplanjson div missing or unparseable');
+    injectParseFailureBanner(table);
     return;
   }
 

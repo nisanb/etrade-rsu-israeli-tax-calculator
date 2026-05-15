@@ -250,6 +250,46 @@ function _popupCopyText(d) {
   return lines.join('\n');
 }
 
+// ─── Parse failure banner ─────────────────────────────────────────────────────
+
+function injectParseFailureBanner(table) {
+  // Guard: one banner per table per session. dataset flag survives React re-renders
+  // because React re-renders tbody rows, not the table element itself.
+  if (table.dataset.ilBannerShown) return;
+  table.dataset.ilBannerShown = 'true';
+
+  const banner = document.createElement('div');
+  banner.id = 'il-tax-parse-banner';
+  banner.style.cssText = [
+    'display:flex', 'align-items:flex-start', 'gap:10px',
+    'background:#fff8e1', 'border:1.5px solid #ffe082',
+    'border-radius:8px', 'padding:10px 14px', 'margin-bottom:8px',
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+    'font-size:13px', 'color:#5d4037', 'line-height:1.5',
+    'position:relative',
+  ].join(';');
+
+  banner.innerHTML = `
+    <span style="font-size:16px;flex-shrink:0">⚠</span>
+    <span>
+      <strong>IL Tax Calculator</strong> — lot data isn't loaded yet.
+      Try refreshing the page. If it persists,
+      <a href="https://github.com/nisanb/etrade-rsu-israeli-tax-calculator/issues"
+         target="_blank" rel="noopener"
+         style="color:#1b5e20;font-weight:600;">report an issue</a>.
+    </span>
+    <button id="il-tax-banner-dismiss"
+      style="margin-left:auto;flex-shrink:0;background:none;border:none;cursor:pointer;
+             font-size:16px;color:#9e9e9e;line-height:1;padding:0 2px;"
+      title="Dismiss">×</button>`;
+
+  table.insertAdjacentElement('beforebegin', banner);
+
+  banner.querySelector('#il-tax-banner-dismiss').addEventListener('click', () => {
+    banner.remove();
+  });
+}
+
 // ─── Column injection ─────────────────────────────────────────────────────────
 
 function injectColumns(table) {
