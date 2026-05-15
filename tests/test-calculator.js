@@ -64,5 +64,51 @@ const zero = calculateLotTax({ grossUSD: 0, benefitUSD: 0, yearsSinceVesting: 1,
   usdToILS: 3.65, priorGainILS: 0 });
 assert(zero.taxUSD === 0, 'zero gain → zero tax');
 
+console.log('\n--- §121b surtax: flat mode, <2yr ---');
+// surtax on: tax = gross × (flatOrdinaryRate + 0.03) = $10k × 0.50 = $5,000
+const flatLt2Surtax = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: true,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(flatLt2Surtax.taxUSD, 5000), 'Flat <2yr surtax on: $10k → $5,000 (47%+3%)');
+assert(near(flatLt2Surtax.effectiveRate, 0.50), 'Flat <2yr surtax on: effectiveRate = 0.50');
+assert(flatLt2Surtax.mode === 'flat-ordinary', 'Flat <2yr surtax on: mode=flat-ordinary');
+
+// surtax off: tax unchanged from existing flat test ($4,700)
+const flatLt2NoSurtax = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(flatLt2NoSurtax.taxUSD, 4700), 'Flat <2yr surtax off: $10k → $4,700 (regression guard)');
+
+console.log('\n--- §121b surtax: flat mode, ≥2yr, sell above FMV ---');
+// $10k gross, $6k benefit (ordinary), $4k appreciation (CG)
+// surtax on: ordinaryTax = $6k × (0.47+0.03) = $3,000; cgTax = $4k × (0.25+0.03) = $1,120; total = $4,120
+const flatGe2Surtax = calculateLotTax({ grossUSD: 10000, benefitUSD: 6000, yearsSinceVesting: 2.5, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: true,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(flatGe2Surtax.ordinaryTaxUSD, 3000), 'Flat ≥2yr surtax on: ordinary $6k×50% = $3,000');
+assert(near(flatGe2Surtax.cgTaxUSD, 1120), 'Flat ≥2yr surtax on: CG $4k×28% = $1,120');
+assert(near(flatGe2Surtax.taxUSD, 4120), 'Flat ≥2yr surtax on: total = $4,120');
+
+// surtax off: ordinaryTax = $6k×0.47 = $2,820; cgTax = $4k×0.25 = $1,000; total = $3,820
+const flatGe2NoSurtax = calculateLotTax({ grossUSD: 10000, benefitUSD: 6000, yearsSinceVesting: 2.5, mode: 'flat',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(flatGe2NoSurtax.ordinaryTaxUSD, 2820), 'Flat ≥2yr surtax off: ordinary $6k×47% = $2,820');
+assert(near(flatGe2NoSurtax.cgTaxUSD, 1000), 'Flat ≥2yr surtax off: CG $4k×25% = $1,000');
+assert(near(flatGe2NoSurtax.taxUSD, 3820), 'Flat ≥2yr surtax off: total = $3,820 (regression guard)');
+
+console.log('\n--- §121b surtax: bracket mode, <2yr — surtax flag has no effect ---');
+// Bracket mode encodes the surtax in the 50% top bracket; the flag must not double-count.
+// $10k × 3.65 = ₪36,500 → 10% bracket → ₪3,650 grossTaxILS (same with or without flag).
+const brkSurtaxOn = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'bracket',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: true,
+  usdToILS: 3.65, priorGainILS: 0 });
+const brkSurtaxOff = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsSinceVesting: 1, mode: 'bracket',
+  flatOrdinaryRate: 0.47, capitalGainsRate: 0.25, capitalGainsSurtax: false,
+  usdToILS: 3.65, priorGainILS: 0 });
+assert(near(brkSurtaxOn.grossTaxILS, brkSurtaxOff.grossTaxILS, 0.01),
+  'Bracket <2yr: surtax flag does not change bracket tax (no double-count)');
+assert(near(brkSurtaxOn.grossTaxILS, 3650), 'Bracket <2yr surtax on: grossTaxILS still ₪3,650');
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

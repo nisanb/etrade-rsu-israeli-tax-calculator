@@ -53,7 +53,9 @@ function calculateLotTax({
     const cgTaxUSD = cgBase * cgRate;
 
     if (mode === 'flat') {
-      const ordinaryTaxUSD = ordinaryBase * flatOrdinaryRate;
+      // §121b surtax applies to all income above ₪721,560/yr, not just capital gains.
+      // In flat mode we add it explicitly; bracket mode already encodes it in the 50% top bracket.
+      const ordinaryTaxUSD = ordinaryBase * (flatOrdinaryRate + (capitalGainsSurtax ? 0.03 : 0));
       const taxUSD = ordinaryTaxUSD + cgTaxUSD;
       return { taxUSD, ordinaryTaxUSD, cgTaxUSD, effectiveRate: taxUSD / grossUSD, mode: 'capital-gains' };
     }
@@ -69,8 +71,11 @@ function calculateLotTax({
 
   // <2yr: ordinary income tax on entire gross proceeds
   if (mode === 'flat') {
-    const taxUSD = grossUSD * flatOrdinaryRate;
-    return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, effectiveRate: flatOrdinaryRate, mode: 'flat-ordinary' };
+    // §121b surtax applies to all income above ₪721,560/yr, not just capital gains.
+    // In flat mode we add it explicitly; bracket mode already encodes it in the 50% top bracket.
+    const effectiveOrdinaryRate = flatOrdinaryRate + (capitalGainsSurtax ? 0.03 : 0);
+    const taxUSD = grossUSD * effectiveOrdinaryRate;
+    return { taxUSD, ordinaryTaxUSD: taxUSD, cgTaxUSD: 0, effectiveRate: effectiveOrdinaryRate, mode: 'flat-ordinary' };
   }
 
   // <2yr bracket mode
