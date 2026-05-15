@@ -109,7 +109,20 @@ function recalculate() {
     const grantDateText = grantDate ? grantDate.toLocaleDateString('en-US') : null;
     console.log('[IL Tax] Row:', dateText, '| vestIdx:', vestIdx, '| grantDate:', grantDateText, '| years:', yearsSinceVesting.toFixed(2));
 
-    if (statusCell) updateStatusCell(statusCell, { grantDate, yearsSinceGrant: yearsSinceVesting });
+    // 2yr boundary countdown — compute days remaining and the date when the lot crosses 2yr.
+    // The clock runs from grant date (or vest date fallback), same as yearsSinceVesting.
+    const TWO_YEAR_MS = 2 * 365.25 * 24 * 3600 * 1000;
+    const crossesAtMs = refDate.getTime() + TWO_YEAR_MS;
+    const daysToTwoYear = yearsSinceVesting < 2
+      ? Math.ceil((crossesAtMs - now.getTime()) / (24 * 3600 * 1000))
+      : null;
+    const crossesAtText = daysToTwoYear !== null
+      ? new Date(crossesAtMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null;
+
+    // Initial status cell update — no tax amount yet (qty may be 0). Countdown shows but
+    // the savings tooltip is suppressed until we have a real tax figure (see updates below).
+    if (statusCell) updateStatusCell(statusCell, { grantDate, yearsSinceGrant: yearsSinceVesting, daysToTwoYear, crossesAtText, hypotheticalTwoYearTaxUSD: null, currentTaxUSD: null });
 
     if (qty <= 0 || grossUSD <= 0) {
       updateRowCells({ taxCell, netCell, rateCell, splitCell },
@@ -137,9 +150,11 @@ function recalculate() {
       priorGainILS += result.gainILS || 0;
       totalBracketGrossILS += result.grossTaxILS || 0;
       bracketHandles.push({ taxCell, netCell, rateCell, splitCell, grossUSD, benefitUSD, result,
-        dateText, fmvAtVesting, qty, yearsSinceVesting, grantDateText });
+        dateText, fmvAtVesting, qty, yearsSinceVesting, grantDateText, daysToTwoYear, crossesAtText, statusCell });
     } else {
       const netUSD = grossUSD - result.taxUSD;
+      // Update status cell again now that we have the actual tax — enables savings tooltip for urgent <2yr lots.
+      if (statusCell) updateStatusCell(statusCell, { grantDate, yearsSinceGrant: yearsSinceVesting, daysToTwoYear, crossesAtText, hypotheticalTwoYearTaxUSD: result.hypotheticalTwoYearTaxUSD ?? null, currentTaxUSD: result.taxUSD });
       updateRowCells({ taxCell, netCell, rateCell, splitCell },
         { taxUSD: result.taxUSD, netUSD, effectiveRate: result.effectiveRate,
           mode: result.mode, currency: settings.currency, usdToILS: settings.usdToILS,
@@ -151,6 +166,8 @@ function recalculate() {
         effectiveRate: result.effectiveRate,
         mode: result.mode, usdToILS: settings.usdToILS, currency: settings.currency,
         ordinaryRate: settings.flatOrdinaryRate, cgRate: settings.capitalGainsRate,
+        daysToTwoYear, crossesAtText,
+        hypotheticalTwoYearTaxUSD: result.hypotheticalTwoYearTaxUSD ?? null,
       });
       totalTaxUSD += result.taxUSD;
       totalNetUSD += netUSD;
@@ -160,7 +177,7 @@ function recalculate() {
   if (bracketHandles.length > 0) {
     const netBracketTaxILS = Math.max(0, totalBracketGrossILS - settings.residentCreditILS);
     bracketHandles.forEach(({ taxCell, netCell, rateCell, splitCell, grossUSD, benefitUSD, result,
-        dateText, fmvAtVesting, qty, yearsSinceVesting, grantDateText }) => {
+        dateText, fmvAtVesting, qty, yearsSinceVesting, grantDateText, daysToTwoYear, crossesAtText, statusCell }) => {
       const proportion = totalBracketGrossILS > 0 ? result.grossTaxILS / totalBracketGrossILS : 0;
       const lotNetOrdinaryTaxILS = netBracketTaxILS * proportion;
       const lotNetOrdinaryTaxUSD = lotNetOrdinaryTaxILS / settings.usdToILS;
@@ -168,6 +185,9 @@ function recalculate() {
       const lotNetTaxUSD = lotNetOrdinaryTaxUSD + cgTaxUSD;
       const netUSD = grossUSD - lotNetTaxUSD;
       const effectiveRate = grossUSD > 0 ? lotNetTaxUSD / grossUSD : 0;
+      // Update status cell now that we have the final net tax for this bracket lot.
+      const grantDate = grantDateText ? new Date(grantDateText) : null;
+      if (statusCell) updateStatusCell(statusCell, { grantDate, yearsSinceGrant: yearsSinceVesting, daysToTwoYear, crossesAtText, hypotheticalTwoYearTaxUSD: result.hypotheticalTwoYearTaxUSD ?? null, currentTaxUSD: lotNetTaxUSD });
       updateRowCells({ taxCell, netCell, rateCell, splitCell },
         { taxUSD: lotNetTaxUSD, netUSD, effectiveRate, mode: 'bracket',
           currency: settings.currency, usdToILS: settings.usdToILS,
@@ -179,6 +199,8 @@ function recalculate() {
         effectiveRate, mode: 'bracket',
         usdToILS: settings.usdToILS, currency: settings.currency,
         ordinaryRate: settings.flatOrdinaryRate, cgRate: settings.capitalGainsRate,
+        daysToTwoYear, crossesAtText,
+        hypotheticalTwoYearTaxUSD: result.hypotheticalTwoYearTaxUSD ?? null,
       });
       totalTaxUSD += lotNetTaxUSD;
       totalNetUSD += netUSD;

@@ -116,6 +116,7 @@ function _renderAndShowPopup(d, triggerRect) {
   const cgPct  = (d.cgRate * 100).toFixed(0);
 
   let taxRows;
+  let earlyRowHtml = '';
   if (is2yr) {
     const capitalLossUSD = d.capitalLossUSD || 0;
     const lossRow = capitalLossUSD > 0 ? `
@@ -139,13 +140,36 @@ function _renderAndShowPopup(d, triggerRect) {
       </div>
       ${lossRow}`;
   } else {
+    // <2yr lot — ordinary income row, plus "Tax if held to 2yr" and "Cost of selling early"
+    const hypTax = d.hypotheticalTwoYearTaxUSD;
+    const hypTaxRow = (hypTax != null) ? `
+      <div class="ilp-tr">
+        <div class="ilp-tr-hd"><span class="ilp-tr-name">Tax if held to 2yr</span><span class="ilp-tr-hint">est.</span></div>
+        <div class="ilp-tr-tax"><span>${d.crossesAtText || ''}</span>
+          <span class="ilp-tr-amt" style="color:#388e3c;">−${fp(hypTax)} <span class="ilp-tr-ils">/ −${fs(hypTax)}</span></span></div>
+      </div>` : '';
+
+    // "Cost of selling early" = current tax − hypothetical 2yr tax.
+    // Skip if delta < $100 or < 1% of gross — noise suppression for nearly-qualifying lots.
+    const delta = (hypTax != null) ? (d.taxUSD - hypTax) : 0;
+    const deltaThresholdMet = delta >= 100 && (delta / d.grossUSD) >= 0.01;
+    if (deltaThresholdMet) {
+      const deltaPct = (delta / d.grossUSD * 100).toFixed(1);
+      earlyRowHtml = `
+      <div class="ilp-total" style="margin-top:6px;">
+        <span class="ilp-total-lbl" style="color:#e65100;">Cost of selling early</span>
+        <span class="ilp-total-amt" style="color:#e65100;">+${fp(delta)} (${deltaPct}%)</span>
+      </div>`;
+    }
+
     taxRows = `
       <div class="ilp-tr">
         <div class="ilp-tr-hd"><span class="ilp-tr-name">Ordinary income</span><span class="ilp-tr-hint">entire gross, &lt;2yr</span></div>
         <div class="ilp-tr-basis">basis: ${fp(d.grossUSD)} <span class="ilp-tr-ils">/ ${fs(d.grossUSD)}</span></div>
         <div class="ilp-tr-tax"><span>Tax @ ${ordPct}%</span>
           <span class="ilp-tr-amt">−${fp(d.taxUSD)} <span class="ilp-tr-ils">/ −${fs(d.taxUSD)}</span></span></div>
-      </div>`;
+      </div>
+      ${hypTaxRow}`;
   }
 
   _popupEl.innerHTML = `
@@ -161,6 +185,7 @@ function _renderAndShowPopup(d, triggerRect) {
         <div class="ilp-vest-date">
           <div>Vest date: ${d.dateText}</div>
           ${d.grantDateText ? `<div>Grant date: ${d.grantDateText} · ${d.yearsSinceVesting.toFixed(1)} yrs ${is2yr ? '✓≥2yr' : '✗&lt;2yr'}</div>` : `<div>${d.yearsSinceVesting.toFixed(1)} yrs from vest</div>`}
+          ${(!is2yr && d.crossesAtText) ? `<div>Crosses 2yr on ${d.crossesAtText} (${d.daysToTwoYear} days)</div>` : ''}
         </div>
         <span class="ilp-badge ${is2yr ? 'ilp-badge-g' : 'ilp-badge-o'}">${is2yr ? '✓ ≥2yr' : '✗ &lt;2yr'}</span>
       </div>
@@ -180,6 +205,7 @@ function _renderAndShowPopup(d, triggerRect) {
         <span class="ilp-total-lbl">Total tax (est.)</span>
         <span class="ilp-total-amt">−${fp(d.taxUSD)} <span class="ilp-tr-ils">/ −${fs(d.taxUSD)}</span></span>
       </div>
+      ${earlyRowHtml}
     </div>
     <div class="ilp-net">
       <div class="ilp-net-lbl">Net proceeds</div>
@@ -256,6 +282,17 @@ function _popupCopyText(d) {
   } else {
     lines.push(`Ordinary income (entire gross): ${dual(d.grossUSD)}`);
     lines.push(`  Tax @ ${ordPct}%: −${dual(d.taxUSD)}`);
+    if (d.crossesAtText && d.daysToTwoYear != null) {
+      lines.push(`Crosses 2yr on ${d.crossesAtText} (${d.daysToTwoYear} days)`);
+    }
+    if (d.hypotheticalTwoYearTaxUSD != null) {
+      lines.push(`Tax if held to 2yr: −${dual(d.hypotheticalTwoYearTaxUSD)}`);
+      const delta = d.taxUSD - d.hypotheticalTwoYearTaxUSD;
+      if (delta >= 100 && (delta / d.grossUSD) >= 0.01) {
+        const deltaPct = (delta / d.grossUSD * 100).toFixed(1);
+        lines.push(`Cost of selling early: +${dual(delta)} (${deltaPct}% of gross)`);
+      }
+    }
   }
   lines.push(`Total tax: −${dual(d.taxUSD)}  (${taxPct}%)`);
   lines.push(`Net proceeds: ${dual(netUSD)}`);
@@ -363,7 +400,7 @@ function _td(extraStyle = '') {
 
 const SECTION102_TOOLTIP = 'Israeli Section 102 income track. Lots held ≥2 years from grant date qualify for 25% capital gains on appreciation; <2 years are taxed at full ordinary rates.';
 
-function updateStatusCell(statusCell, { grantDate, yearsSinceGrant }) {
+function updateStatusCell(statusCell, { grantDate, yearsSinceGrant, daysToTwoYear, crossesAtText, hypotheticalTwoYearTaxUSD, currentTaxUSD }) {
   if (!grantDate) {
     statusCell.textContent = '—';
     statusCell.title = '';
@@ -375,7 +412,30 @@ function updateStatusCell(statusCell, { grantDate, yearsSinceGrant }) {
   if (is2yr) {
     statusCell.innerHTML = '<span style="display:inline-block;background:#e8f5e9;color:#2e7d32;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;">✓ ≥2yr</span>';
   } else {
-    statusCell.innerHTML = '<span style="display:inline-block;background:#fff3e0;color:#e65100;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;">⚠ <2yr</span>';
+    // <2yr: amber pill, with escalation when ≤90 days remain
+    const isUrgent = daysToTwoYear !== null && daysToTwoYear <= 90;
+    const pillBg = isUrgent ? '#ff9800' : '#fff3e0';
+    const pillColor = isUrgent ? '#fff' : '#e65100';
+    const pillFw = isUrgent ? '800' : '700';
+
+    let wrapperTitle = SECTION102_TOOLTIP;
+    if (isUrgent && hypotheticalTwoYearTaxUSD != null && currentTaxUSD != null && crossesAtText) {
+      const savingsUSD = Math.round(currentTaxUSD - hypotheticalTwoYearTaxUSD);
+      const fromAmt = '$' + Math.round(currentTaxUSD).toLocaleString('en-US');
+      const toAmt   = '$' + Math.round(hypotheticalTwoYearTaxUSD).toLocaleString('en-US');
+      const saveAmt = '$' + Math.abs(savingsUSD).toLocaleString('en-US');
+      wrapperTitle = `If held until ${crossesAtText}: est. tax drops from ${fromAmt} to ${toAmt} (save ${saveAmt})`;
+    }
+
+    const countdownHtml = daysToTwoYear !== null
+      ? `<div style="font-size:9px;color:#999;margin-top:2px;">⏳ ${daysToTwoYear} days to ≥2yr</div>`
+      : '';
+
+    statusCell.innerHTML =
+      `<span title="${wrapperTitle.replace(/"/g, '&quot;')}">` +
+        `<span style="display:inline-block;background:${pillBg};color:${pillColor};border-radius:20px;padding:1px 7px;font-size:10px;font-weight:${pillFw};white-space:nowrap;">⚠ &lt;2yr</span>` +
+        countdownHtml +
+      `</span>`;
   }
 }
 
