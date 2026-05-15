@@ -142,11 +142,13 @@ function recalculate() {
       const netUSD = grossUSD - result.taxUSD;
       updateRowCells({ taxCell, netCell, rateCell, splitCell },
         { taxUSD: result.taxUSD, netUSD, effectiveRate: result.effectiveRate,
-          mode: result.mode, currency: settings.currency, usdToILS: settings.usdToILS });
+          mode: result.mode, currency: settings.currency, usdToILS: settings.usdToILS,
+          capitalLossUSD: result.capitalLossUSD || 0 });
       taxCell.dataset.ilTipData = JSON.stringify({
         dateText, fmvAtVesting, grossUSD, qty, benefitUSD, yearsSinceVesting, grantDateText,
         taxUSD: result.taxUSD, ordinaryTaxUSD: result.ordinaryTaxUSD,
-        cgTaxUSD: result.cgTaxUSD, effectiveRate: result.effectiveRate,
+        cgTaxUSD: result.cgTaxUSD, capitalLossUSD: result.capitalLossUSD || 0,
+        effectiveRate: result.effectiveRate,
         mode: result.mode, usdToILS: settings.usdToILS, currency: settings.currency,
         ordinaryRate: settings.flatOrdinaryRate, cgRate: settings.capitalGainsRate,
       });
@@ -168,10 +170,12 @@ function recalculate() {
       const effectiveRate = grossUSD > 0 ? lotNetTaxUSD / grossUSD : 0;
       updateRowCells({ taxCell, netCell, rateCell, splitCell },
         { taxUSD: lotNetTaxUSD, netUSD, effectiveRate, mode: 'bracket',
-          currency: settings.currency, usdToILS: settings.usdToILS });
+          currency: settings.currency, usdToILS: settings.usdToILS,
+          capitalLossUSD: result.capitalLossUSD || 0 });
       taxCell.dataset.ilTipData = JSON.stringify({
         dateText, fmvAtVesting, grossUSD, qty, benefitUSD, yearsSinceVesting, grantDateText,
         taxUSD: lotNetTaxUSD, ordinaryTaxUSD: lotNetOrdinaryTaxUSD, cgTaxUSD,
+        capitalLossUSD: result.capitalLossUSD || 0,
         effectiveRate, mode: 'bracket',
         usdToILS: settings.usdToILS, currency: settings.currency,
         ordinaryRate: settings.flatOrdinaryRate, cgRate: settings.capitalGainsRate,
