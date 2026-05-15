@@ -65,6 +65,11 @@
           <div class="card-label">Annual Resident Tax Credit (₪)</div>
           <input id="residentCreditILS" type="number" step="1" class="full-input" />
         </div>
+        <div style="margin-top:10px">
+          <div class="card-label">Income already taxed this year (₪)</div>
+          <input id="ytdTaxableIncomeILS" type="number" step="100" min="0" class="full-input" />
+          <div class="hint" style="margin-top:4px">If you have a salary or other IL income, enter your year-to-date taxable income so bracket calculations start from your real marginal rate.</div>
+        </div>
       </div>
 
       <div class="card" id="rateRow">
