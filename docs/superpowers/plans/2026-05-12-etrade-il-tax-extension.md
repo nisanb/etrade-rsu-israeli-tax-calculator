@@ -93,7 +93,7 @@ console.log('[IL Tax] content script loaded');
 - [ ] **Step 4: Load extension in Chrome and verify**
 
 1. Open `chrome://extensions`, enable Developer mode
-2. Click "Load unpacked" → select `/home/nisan/chrome-rsu`
+2. Click "Load unpacked" → select `<repo-root>`
 3. Confirm no errors on the extensions page
 4. Navigate to `https://us.etrade.com/etx/sp/stockplan`
 5. Open DevTools → Console → confirm `[IL Tax] content script loaded`
@@ -101,7 +101,7 @@ console.log('[IL Tax] content script loaded');
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/nisan/chrome-rsu && git init && git add . && git commit -m "feat: initial Chrome extension scaffold"
+cd <repo-root> && git init && git add . && git commit -m "feat: initial Chrome extension scaffold"
 ```
 
 ---
