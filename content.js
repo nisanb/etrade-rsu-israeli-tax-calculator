@@ -15,6 +15,8 @@ const STORAGE_DEFAULTS = {
   capitalGainsSurtax: false,
   residentCreditILS: 7986,
   ytdTaxableIncomeILS: 0,
+  monthlySalaryILS: 0,
+  useMonthlySalary: false,
   usdToILS: 3.65,
   currency: 'USD',
 };
@@ -26,6 +28,8 @@ let settings = {
   capitalGainsSurtax: false,
   residentCreditILS: 7986,
   ytdTaxableIncomeILS: 0,
+  monthlySalaryILS: 0,
+  useMonthlySalary: false,
   usdToILS: 3.65,
   currency: 'USD',
 };
@@ -62,12 +66,20 @@ function _findSellableTable() {
 
 function recalculate() {
   if (!injectionResult || !parsedData) return;
-  const { handles, totalTaxCell, totalNetCell, totalSplitCell } = injectionResult;
+  const { handles, totalTaxCell, totalNetCell, totalSplitCell, warningBanner } = injectionResult;
   const now = new Date();
 
-  let priorGainILS = settings.incomeMode === 'bracket'
-    ? (settings.ytdTaxableIncomeILS || 0)
-    : 0;
+  // YTD income for bracket stacking — either the user's explicit YTD entry,
+  // or auto-computed from monthly salary × months elapsed (popup writes this back
+  // into ytdTaxableIncomeILS too, but recompute here so it stays correct if the
+  // popup wasn't reopened across a month boundary).
+  const monthsElapsed = now.getMonth() + 1;
+  const effectiveYtdILS = settings.useMonthlySalary
+    ? (settings.monthlySalaryILS || 0) * monthsElapsed
+    : (settings.ytdTaxableIncomeILS || 0);
+
+  let priorGainILS = settings.incomeMode === 'bracket' ? effectiveYtdILS : 0;
+  const bracketStartILS = priorGainILS;
   let totalBracketGrossILS = 0;
   const bracketHandles = [];
   let totalTaxUSD = 0;
@@ -212,6 +224,40 @@ function recalculate() {
   }
 
   updateTotals(totalTaxCell, totalNetCell, totalSplitCell, totalTaxUSD, totalNetUSD, settings.currency, settings.usdToILS);
+
+  // Bracket-crossing warning: only meaningful in bracket mode, only when RSU ordinary
+  // income was actually added (priorGainILS moved forward). Shows when the sale ends
+  // in a higher bracket than it started.
+  if (warningBanner) {
+    const bracketEndILS = priorGainILS;
+    const crossed = settings.incomeMode === 'bracket'
+      && bracketEndILS > bracketStartILS
+      && bracketIndexFor(bracketEndILS, IL_BRACKETS_2026) > bracketIndexFor(bracketStartILS, IL_BRACKETS_2026);
+    if (crossed) {
+      const startIdx  = bracketIndexFor(bracketStartILS, IL_BRACKETS_2026);
+      const endIdx    = bracketIndexFor(bracketEndILS, IL_BRACKETS_2026);
+      const startBkt  = IL_BRACKETS_2026[startIdx];
+      const endBkt    = IL_BRACKETS_2026[endIdx];
+      const boundary  = IL_BRACKETS_2026[endIdx - 1].limit;
+      const overILS   = Math.max(0, bracketEndILS - boundary);
+      warningBanner.show({
+        startRatePct: Math.round(startBkt.rate * 100),
+        endRatePct:   Math.round(endBkt.rate * 100),
+        startRangeLabel: _bracketRangeLabel(startIdx),
+        endRangeLabel:   _bracketRangeLabel(endIdx),
+        overILS,
+      });
+    } else {
+      warningBanner.hide();
+    }
+  }
+}
+
+function _bracketRangeLabel(idx) {
+  const lo = idx === 0 ? 0 : IL_BRACKETS_2026[idx - 1].limit;
+  const hi = IL_BRACKETS_2026[idx].limit;
+  const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
+  return hi === Infinity ? `above ${fmt(lo)}` : `${fmt(lo)}–${fmt(hi)}`;
 }
 
 function tryInject() {

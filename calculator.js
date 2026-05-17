@@ -25,6 +25,17 @@ function bracketTaxForAmount(amountILS, brackets) {
   return tax;
 }
 
+// Returns the index of the bracket that contains `amountILS`
+// (the first bracket whose `limit` is >= amountILS). The bottom edge
+// is exclusive of `prevLimit` and inclusive of `limit`, so the boundary
+// value itself sits in the lower bracket (e.g. 84120 → bracket 0).
+function bracketIndexFor(amountILS, brackets) {
+  for (let i = 0; i < brackets.length; i++) {
+    if (amountILS <= brackets[i].limit) return i;
+  }
+  return brackets.length - 1;
+}
+
 // Returns { taxUSD, ordinaryTaxUSD, cgTaxUSD, grossTaxILS, gainILS, effectiveRate, mode }.
 // grossTaxILS / gainILS are only present in bracket mode (for resident credit calculation).
 // In bracket mode, grossTaxILS covers the ordinary-income bracket tax only; cgTaxUSD is always flat.

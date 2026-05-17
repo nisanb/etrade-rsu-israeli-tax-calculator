@@ -339,6 +339,38 @@ function injectParseFailureBanner(table) {
   });
 }
 
+// ─── Bracket-crossing warning banner ──────────────────────────────────────────
+
+function injectBracketWarningBanner(table) {
+  const banner = document.createElement('div');
+  banner.id = 'il-tax-bracket-warning';
+  banner.style.cssText = [
+    'display:none', 'align-items:flex-start', 'gap:10px',
+    'background:#fff8e1', 'border:1.5px solid #ffc107',
+    'border-radius:8px', 'padding:10px 14px', 'margin:8px 0',
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+    'font-size:13px', 'color:#5d4037', 'line-height:1.5',
+  ].join(';');
+  table.insertAdjacentElement('beforebegin', banner);
+
+  return {
+    banner,
+    show({ startRatePct, endRatePct, startRangeLabel, endRangeLabel, overILS }) {
+      const overTxt = '₪' + Math.round(overILS).toLocaleString('en-US');
+      banner.innerHTML = `
+        <span style="font-size:16px;flex-shrink:0">⚠</span>
+        <span>
+          <strong>This sale crosses a tax bracket.</strong>
+          Without sale: <strong>${startRatePct}%</strong> marginal (${startRangeLabel}).
+          With sale: <strong>${endRatePct}%</strong> marginal (${endRangeLabel}).
+          <strong>${overTxt}</strong> of this sale is taxed at the higher rate.
+        </span>`;
+      banner.style.display = 'flex';
+    },
+    hide() { banner.style.display = 'none'; },
+  };
+}
+
 // ─── Column injection ─────────────────────────────────────────────────────────
 
 function injectColumns(table) {
@@ -388,7 +420,9 @@ function injectColumns(table) {
   const tbody = table.querySelector('tbody');
   if (tbody) tbody.appendChild(totalsRow);
 
-  return { handles, totalTaxCell, totalNetCell, totalSplitCell };
+  const warningBanner = injectBracketWarningBanner(table);
+
+  return { handles, totalTaxCell, totalNetCell, totalSplitCell, warningBanner };
 }
 
 function _td(extraStyle = '') {

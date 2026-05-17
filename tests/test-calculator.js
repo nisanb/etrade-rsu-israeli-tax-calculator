@@ -240,5 +240,16 @@ const flatWithYtd = calculateLotTax({ grossUSD: 10000, benefitUSD: 10000, yearsS
 assert(near(flatNoYtd.taxUSD, flatWithYtd.taxUSD, 0.01),
   'Flat mode: priorGainILS=500k does not change taxUSD (regression guard)');
 
+console.log('\n--- bracketIndexFor ---');
+// Boundaries are inclusive on the upper edge: 84120 is in bracket 0, 84121 in bracket 1.
+assert(bracketIndexFor(0, IL_BRACKETS_2026) === 0, '₪0 → bracket 0 (10%)');
+assert(bracketIndexFor(50000, IL_BRACKETS_2026) === 0, '₪50k → bracket 0 (10%)');
+assert(bracketIndexFor(84120, IL_BRACKETS_2026) === 0, '₪84,120 (exact boundary) → bracket 0');
+assert(bracketIndexFor(84121, IL_BRACKETS_2026) === 1, '₪84,121 → bracket 1 (14%)');
+assert(bracketIndexFor(100000, IL_BRACKETS_2026) === 1, '₪100k → bracket 1 (14%)');
+assert(bracketIndexFor(300000, IL_BRACKETS_2026) === 3, '₪300k → bracket 3 (31%)');
+assert(bracketIndexFor(800000, IL_BRACKETS_2026) === 6, '₪800k → bracket 6 (50%, above ₪721,560)');
+assert(bracketIndexFor(1e9, IL_BRACKETS_2026) === 6, 'very large → bracket 6 (top)');
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
