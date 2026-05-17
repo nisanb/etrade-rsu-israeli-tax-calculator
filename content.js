@@ -69,16 +69,25 @@ function recalculate() {
   const { handles, totalTaxCell, totalNetCell, totalSplitCell, warningBanner } = injectionResult;
   const now = new Date();
 
-  // YTD income for bracket stacking — either the user's explicit YTD entry,
-  // or auto-computed from monthly salary × months elapsed (popup writes this back
-  // into ytdTaxableIncomeILS too, but recompute here so it stays correct if the
-  // popup wasn't reopened across a month boundary).
-  const monthsElapsed = now.getMonth() + 1;
-  const effectiveYtdILS = settings.useMonthlySalary
-    ? (settings.monthlySalaryILS || 0) * monthsElapsed
+  // Israeli income tax is computed annually, so when the user opts into the
+  // monthly-salary mode we annualize directly (monthly × 12) — no YTD bookkeeping
+  // required. Otherwise fall back to the manual "income already taxed this year"
+  // field which the user can set to whatever annual figure they want.
+  const annualSalaryILS = (settings.monthlySalaryILS || 0) * 12;
+  const effectiveAnnualILS = settings.useMonthlySalary
+    ? annualSalaryILS
     : (settings.ytdTaxableIncomeILS || 0);
 
-  let priorGainILS = settings.incomeMode === 'bracket' ? effectiveYtdILS : 0;
+  // §121b 3% surtax applies above ₪721,560/yr. In bracket mode it's already baked
+  // into the 50% top bracket, so the flag only matters for flat mode and for CG.
+  // When useMonthlySalary is on we auto-derive it from annualized salary; otherwise
+  // honor whatever the user manually set.
+  const SURTAX_THRESHOLD_ILS = 721560;
+  const effectiveSurtax = settings.useMonthlySalary
+    ? annualSalaryILS > SURTAX_THRESHOLD_ILS
+    : !!settings.capitalGainsSurtax;
+
+  let priorGainILS = settings.incomeMode === 'bracket' ? effectiveAnnualILS : 0;
   const bracketStartILS = priorGainILS;
   let totalBracketGrossILS = 0;
   const bracketHandles = [];
@@ -157,7 +166,7 @@ function recalculate() {
       grossUSD, benefitUSD, yearsSinceVesting, mode: settings.incomeMode,
       flatOrdinaryRate: settings.flatOrdinaryRate,
       capitalGainsRate: settings.capitalGainsRate,
-      capitalGainsSurtax: settings.capitalGainsSurtax,
+      capitalGainsSurtax: effectiveSurtax,
       usdToILS: settings.usdToILS,
       priorGainILS,
     });
