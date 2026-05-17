@@ -523,52 +523,19 @@ console.log('\n--- Bracket warning banner: hidden in flat mode even when crossin
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\n--- Monthly salary: useMonthlySalary auto-computes effective YTD ---');
+console.log('\n--- Monthly salary: annualizes to monthly × 12 (not × months elapsed) ---');
 // ─────────────────────────────────────────────────────────────────────────────
 
 {
-  h.setupDOM({
-    stockplanJson: makeStockplanJson([
-      { grantDate: dmyStr(grantNew), vestDateRaw: dmyStr(vestNew), fmv: 100.00, shares: 100 },
-    ]),
-    rows: [{ vestDate: mdyStr(vestNew), fmv: 100.00, qty: 0 }],
-  });
-  h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
-  h.loadContentScripts();
-
-  const doc = h.getDocument();
-  const win = h.getWindow();
-  const monthsElapsed = new Date().getMonth() + 1;
+  // monthly=₪50,000 → annual=₪600,000 (in 35% bracket, ₪301k–₪560k... wait 600k is in next).
+  // Actually 600k > 560,280 so it's in the 47% bracket (₪560k–₪722k). A small RSU lot
+  // on top is taxed marginally at 47%, regardless of which month of the year we're in.
+  // We run two recalcs with monthly=₪50k and prove they produce identical tax —
+  // proving the calculation does NOT depend on the current calendar month.
   const monthlyILS = 50000;
-  const expectedEffectiveYtd = monthlyILS * monthsElapsed; // should put user well into high bracket
+  const annual = monthlyILS * 12; // ₪600,000
 
-  // Important: ytdTaxableIncomeILS=0 so we can prove monthly takes precedence.
-  h.emitMessage({
-    type: 'SETTINGS_UPDATED',
-    settings: {
-      incomeMode: 'bracket', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
-      capitalGainsSurtax: false, usdToILS: 3.65, currency: 'USD',
-      residentCreditILS: 0, ytdTaxableIncomeILS: 0,
-      monthlySalaryILS: monthlyILS, useMonthlySalary: true,
-    },
-  });
-
-  const row = doc.querySelector('tbody tr');
-  const proceedsTd = row.querySelectorAll('td')[5];
-  proceedsTd.textContent = '$10,000';
-  const input = row.querySelector('input');
-  input.value = '100';
-  input.dispatchEvent(new win.Event('input', { bubbles: true }));
-
-  const cells = Array.from(row.querySelectorAll('td'));
-  const tipData = cells[7] && cells[7].dataset.ilTipData;
-  assert(!!tipData, 'monthly salary: ilTipData present');
-  if (tipData) {
-    const d = JSON.parse(tipData);
-    // With monthly=50k × monthsElapsed months, user is deep into upper brackets.
-    // Compare against the same lot with monthly=0/YTD=0 — must produce higher tax.
-    h.teardown();
-
+  function recalcOnce() {
     h.setupDOM({
       stockplanJson: makeStockplanJson([
         { grantDate: dmyStr(grantNew), vestDateRaw: dmyStr(vestNew), fmv: 100.00, shares: 100 },
@@ -577,28 +544,177 @@ console.log('\n--- Monthly salary: useMonthlySalary auto-computes effective YTD 
     });
     h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
     h.loadContentScripts();
-    const doc2 = h.getDocument();
-    const win2 = h.getWindow();
+    const doc = h.getDocument();
+    const win = h.getWindow();
     h.emitMessage({
       type: 'SETTINGS_UPDATED',
       settings: {
         incomeMode: 'bracket', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
         capitalGainsSurtax: false, usdToILS: 3.65, currency: 'USD',
         residentCreditILS: 0, ytdTaxableIncomeILS: 0,
-        monthlySalaryILS: 0, useMonthlySalary: false,
+        monthlySalaryILS: monthlyILS, useMonthlySalary: true,
       },
     });
-    const row2 = doc2.querySelector('tbody tr');
-    row2.querySelectorAll('td')[5].textContent = '$10,000';
-    const input2 = row2.querySelector('input');
-    input2.value = '100';
-    input2.dispatchEvent(new win2.Event('input', { bubbles: true }));
-    const tipData2 = row2.querySelectorAll('td')[7].dataset.ilTipData;
-    const d2 = JSON.parse(tipData2);
-    assert(d.taxUSD > d2.taxUSD,
-           `monthly salary: useMonthlySalary=true (₪${expectedEffectiveYtd}) produces higher tax than zero YTD`);
+    const row = doc.querySelector('tbody tr');
+    row.querySelectorAll('td')[5].textContent = '$10,000';
+    const input = row.querySelector('input');
+    input.value = '100';
+    input.dispatchEvent(new win.Event('input', { bubbles: true }));
+    const tipData = row.querySelectorAll('td')[7].dataset.ilTipData;
+    return tipData ? JSON.parse(tipData) : null;
   }
 
+  const d1 = recalcOnce();
+  h.teardown();
+  const d2 = recalcOnce();
+  h.teardown();
+
+  assert(!!d1 && !!d2, 'monthly × 12: both recalcs produce ilTipData');
+  if (d1 && d2) {
+    assert(Math.abs(d1.taxUSD - d2.taxUSD) < 0.01,
+           'monthly × 12: identical input → identical tax (no calendar-month dependence)');
+    // gross=$10k × 3.65 = ₪36,500; sitting on ₪600k YTD → entirely in 47% bracket
+    // expected tax ≈ ₪36,500 × 0.47 = ₪17,155; in USD ≈ $4,700
+    assert(Math.abs(d1.taxUSD - 4700) < 5,
+           `monthly × 12: monthly=₪50k → annual=₪${annual}, RSU taxed at 47% marginal ≈ $4,700`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- Monthly salary: auto-derives §121b surtax above ₪721,560/yr ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+{
+  // monthly=₪70,000 → annual=₪840,000 (above ₪721,560 surtax threshold).
+  // Flat mode + ≥2yr lot so the surtax actually affects the result:
+  // ordinary at 47%+3% on the FMV portion; CG at 25%+3% on appreciation.
+  // We send capitalGainsSurtax=false but expect content.js to override it.
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantOld), vestDateRaw: dmyStr(vestOld), fmv: 60.00, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestOld), fmv: 60.00, qty: 0 }],
+  });
+  h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
+  h.loadContentScripts();
+  const doc = h.getDocument();
+  const win = h.getWindow();
+
+  h.emitMessage({
+    type: 'SETTINGS_UPDATED',
+    settings: {
+      incomeMode: 'flat', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
+      capitalGainsSurtax: false, // deliberately false — content should override
+      usdToILS: 3.65, currency: 'USD',
+      residentCreditILS: 0, ytdTaxableIncomeILS: 0,
+      monthlySalaryILS: 70000, useMonthlySalary: true,
+    },
+  });
+
+  const row = doc.querySelector('tbody tr');
+  // gross=$10k, benefit=$6k (100×$60), appreciation=$4k
+  // With surtax: ordinary=$6k×0.50=$3,000; CG=$4k×0.28=$1,120; total=$4,120
+  row.querySelectorAll('td')[5].textContent = '$10,000';
+  const input = row.querySelector('input');
+  input.value = '100';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  const tipData = row.querySelectorAll('td')[7].dataset.ilTipData;
+  assert(!!tipData, 'auto surtax: ilTipData present');
+  if (tipData) {
+    const d = JSON.parse(tipData);
+    assert(Math.abs(d.taxUSD - 4120) < 1,
+           'auto surtax: monthly=₪70k → annual=₪840k > threshold → surtax on → tax = $4,120');
+  }
+  h.teardown();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- Monthly salary: does NOT auto-enable surtax below threshold ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+{
+  // monthly=₪50,000 → annual=₪600,000 (below ₪721,560 threshold).
+  // Same flat ≥2yr scenario as above but without surtax expected.
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantOld), vestDateRaw: dmyStr(vestOld), fmv: 60.00, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestOld), fmv: 60.00, qty: 0 }],
+  });
+  h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
+  h.loadContentScripts();
+  const doc = h.getDocument();
+  const win = h.getWindow();
+
+  h.emitMessage({
+    type: 'SETTINGS_UPDATED',
+    settings: {
+      incomeMode: 'flat', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
+      capitalGainsSurtax: true, // deliberately TRUE — content should override to false
+      usdToILS: 3.65, currency: 'USD',
+      residentCreditILS: 0, ytdTaxableIncomeILS: 0,
+      monthlySalaryILS: 50000, useMonthlySalary: true,
+    },
+  });
+
+  const row = doc.querySelector('tbody tr');
+  // ordinary=$6k×0.47=$2,820; CG=$4k×0.25=$1,000; total=$3,820 (no surtax)
+  row.querySelectorAll('td')[5].textContent = '$10,000';
+  const input = row.querySelector('input');
+  input.value = '100';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  const tipData = row.querySelectorAll('td')[7].dataset.ilTipData;
+  if (tipData) {
+    const d = JSON.parse(tipData);
+    assert(Math.abs(d.taxUSD - 3820) < 1,
+           'auto surtax: monthly=₪50k → annual=₪600k < threshold → surtax off → tax = $3,820');
+  }
+  h.teardown();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- Manual surtax checkbox still honored when useMonthlySalary is off ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+{
+  // useMonthlySalary=false → content must honor the manual capitalGainsSurtax flag,
+  // even if monthly salary value happens to be set to something below threshold.
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantOld), vestDateRaw: dmyStr(vestOld), fmv: 60.00, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestOld), fmv: 60.00, qty: 0 }],
+  });
+  h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
+  h.loadContentScripts();
+  const doc = h.getDocument();
+  const win = h.getWindow();
+
+  h.emitMessage({
+    type: 'SETTINGS_UPDATED',
+    settings: {
+      incomeMode: 'flat', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
+      capitalGainsSurtax: true,
+      usdToILS: 3.65, currency: 'USD',
+      residentCreditILS: 0, ytdTaxableIncomeILS: 0,
+      monthlySalaryILS: 50000, useMonthlySalary: false, // off — auto-derive disabled
+    },
+  });
+
+  const row = doc.querySelector('tbody tr');
+  row.querySelectorAll('td')[5].textContent = '$10,000';
+  const input = row.querySelector('input');
+  input.value = '100';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  const tipData = row.querySelectorAll('td')[7].dataset.ilTipData;
+  if (tipData) {
+    const d = JSON.parse(tipData);
+    assert(Math.abs(d.taxUSD - 4120) < 1,
+           'manual surtax: useMonthlySalary=false → manual capitalGainsSurtax=true honored → $4,120');
+  }
   h.teardown();
 }
 

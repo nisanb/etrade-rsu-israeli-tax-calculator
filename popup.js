@@ -46,21 +46,34 @@ function _setCurrency(currency) {
   _updateRateRowVisibility();
 }
 
+const SURTAX_THRESHOLD_ILS = 721560;
+
 function _applyMonthlySalaryUI(useMonthly, monthlyValue) {
-  const monthlyRow = document.getElementById('monthlySalaryRow');
-  const ytdInput   = document.getElementById('ytdTaxableIncomeILS');
-  const hint       = document.getElementById('autoYtdHint');
+  const monthlyRow  = document.getElementById('monthlySalaryRow');
+  const ytdInput    = document.getElementById('ytdTaxableIncomeILS');
+  const hint        = document.getElementById('autoYtdHint');
+  const surtaxCb    = document.getElementById('capitalGainsSurtax');
+  const surtaxHint  = document.getElementById('surtaxAutoHint');
   monthlyRow.classList.toggle('hidden', !useMonthly);
   ytdInput.disabled = useMonthly;
   ytdInput.style.opacity = useMonthly ? '0.55' : '1';
+  surtaxCb.disabled = useMonthly;
+  surtaxCb.parentElement.style.opacity = useMonthly ? '0.7' : '1';
+
   if (useMonthly) {
-    const months = new Date().getMonth() + 1;
     const monthly = Math.max(0, parseFloat(monthlyValue) || 0);
-    const auto = Math.round(monthly * months);
-    ytdInput.value = auto;
-    hint.textContent = `Auto-YTD: ₪${auto.toLocaleString('en-US')} (${months} months × ₪${monthly.toLocaleString('en-US')})`;
+    const annual  = Math.round(monthly * 12);
+    ytdInput.value = annual;
+    hint.textContent = `Annual: ₪${annual.toLocaleString('en-US')} (monthly × 12)`;
+    const surtaxAuto = annual > SURTAX_THRESHOLD_ILS;
+    surtaxCb.checked = surtaxAuto;
+    surtaxHint.textContent = surtaxAuto
+      ? `Auto-on: annual > ₪${SURTAX_THRESHOLD_ILS.toLocaleString('en-US')}`
+      : `Auto-off: annual ≤ ₪${SURTAX_THRESHOLD_ILS.toLocaleString('en-US')}`;
+    surtaxHint.classList.remove('hidden');
   } else {
     hint.textContent = '';
+    surtaxHint.classList.add('hidden');
   }
 }
 
@@ -142,7 +155,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const monthly = parseFloat(document.getElementById('monthlySalaryILS').value) || 0;
     _applyMonthlySalaryUI(checked, monthly);
     const patch = { useMonthlySalary: checked };
-    if (checked) patch.ytdTaxableIncomeILS = Math.round(monthly * (new Date().getMonth() + 1));
+    if (checked) {
+      const annual = Math.round(monthly * 12);
+      patch.ytdTaxableIncomeILS = annual;
+      patch.capitalGainsSurtax = annual > SURTAX_THRESHOLD_ILS;
+    }
     _sendToContent(patch);
   });
   document.getElementById('monthlySalaryILS').addEventListener('input', e => {
@@ -150,7 +167,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const useMonthly = document.getElementById('useMonthlySalary').checked;
     _applyMonthlySalaryUI(useMonthly, monthly);
     const patch = { monthlySalaryILS: monthly };
-    if (useMonthly) patch.ytdTaxableIncomeILS = Math.round(monthly * (new Date().getMonth() + 1));
+    if (useMonthly) {
+      const annual = Math.round(monthly * 12);
+      patch.ytdTaxableIncomeILS = annual;
+      patch.capitalGainsSurtax = annual > SURTAX_THRESHOLD_ILS;
+    }
     _sendToContent(patch);
   });
   document.getElementById('usdToILS').addEventListener('input', e => {
