@@ -312,17 +312,28 @@ function tryInject() {
 // Polls input values every 150ms to catch programmatic changes (e.g. E*TRADE "Select" button).
 // React captures the original HTMLInputElement.prototype.value setter before content scripts run,
 // so prototype patching is unreliable. Polling is the only reliable cross-React solution.
+//
+// We also poll the proceeds td text per row. The native `input` event fires synchronously
+// when the user types, but E*TRADE's React updates the proceeds cell asynchronously after
+// that. So the first recalculate() sees the new qty but stale proceeds and falls into the
+// mode='zero' branch. Tracking proceeds text catches the deferred update and re-fires.
 let _qtyPollHandle = null;
 function _startQtyPoller() {
   if (_qtyPollHandle !== null) return;
-  const snapshot = new Map();
+  const qtySnapshot = new Map();
+  const proceedsSnapshot = new Map();
   _qtyPollHandle = setInterval(() => {
     if (!injectionResult) return;
     let changed = false;
     injectionResult.handles.forEach(({ row }) => {
       const input = row.querySelector('input.form-control[placeholder="0"]');
       const val = input ? input.value : '';
-      if (snapshot.get(row) !== val) { snapshot.set(row, val); changed = true; }
+      if (qtySnapshot.get(row) !== val) { qtySnapshot.set(row, val); changed = true; }
+
+      const inputTd = input ? input.closest('td') : null;
+      const proceedsTd = inputTd ? inputTd.nextElementSibling : null;
+      const proceeds = proceedsTd ? proceedsTd.textContent.trim() : '';
+      if (proceedsSnapshot.get(row) !== proceeds) { proceedsSnapshot.set(row, proceeds); changed = true; }
     });
     if (changed) recalculate();
   }, 150);
