@@ -391,6 +391,218 @@ console.log('\n--- Popup HTML: ≥2yr lot omits "Cost of selling early" ---');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- Bracket warning banner: appears when sale crosses brackets ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+{
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantNew), vestDateRaw: dmyStr(vestNew), fmv: 100.00, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestNew), fmv: 100.00, qty: 0 }],
+  });
+  h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
+  h.loadContentScripts();
+
+  const doc = h.getDocument();
+  const win = h.getWindow();
+
+  // Bracket mode, YTD = ₪220k (in 20% bracket, ₪121k–₪228k).
+  // Add an RSU lot whose ordinary income pushes total well into the 31% bracket (₪228k–₪301k).
+  h.emitMessage({
+    type: 'SETTINGS_UPDATED',
+    settings: {
+      incomeMode: 'bracket', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
+      capitalGainsSurtax: false, usdToILS: 3.65, currency: 'USD',
+      residentCreditILS: 0, ytdTaxableIncomeILS: 220000,
+      monthlySalaryILS: 0, useMonthlySalary: false,
+    },
+  });
+
+  const row = doc.querySelector('tbody tr');
+  const proceedsTd = row.querySelectorAll('td')[5];
+  // grossUSD=$15k → ₪54,750 ordinary; total = 220k + 54.75k = 274.75k (in 31% bracket)
+  proceedsTd.textContent = '$15,000';
+  const input = row.querySelector('input');
+  input.value = '100';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  const banner = doc.getElementById('il-tax-bracket-warning');
+  assert(!!banner, 'bracket warning: #il-tax-bracket-warning element present');
+  assert(banner && banner.style.display !== 'none', 'bracket warning: visible after crossing');
+  const html = banner ? banner.innerHTML : '';
+  assert(html.includes('20%'), 'bracket warning: shows start bracket 20%');
+  assert(html.includes('31%'), 'bracket warning: shows end bracket 31%');
+  assert(html.includes('crosses a tax bracket'), 'bracket warning: shows crossing message');
+
+  h.teardown();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- Bracket warning banner: hidden when sale stays in same bracket ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+{
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantNew), vestDateRaw: dmyStr(vestNew), fmv: 100.00, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestNew), fmv: 100.00, qty: 0 }],
+  });
+  h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
+  h.loadContentScripts();
+
+  const doc = h.getDocument();
+  const win = h.getWindow();
+
+  // YTD = ₪150k (in 20% bracket), small sale that keeps total under ₪228k boundary.
+  h.emitMessage({
+    type: 'SETTINGS_UPDATED',
+    settings: {
+      incomeMode: 'bracket', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
+      capitalGainsSurtax: false, usdToILS: 3.65, currency: 'USD',
+      residentCreditILS: 0, ytdTaxableIncomeILS: 150000,
+      monthlySalaryILS: 0, useMonthlySalary: false,
+    },
+  });
+
+  const row = doc.querySelector('tbody tr');
+  const proceedsTd = row.querySelectorAll('td')[5];
+  // gross=$2k → ₪7,300; total = 157.3k (still in 20% bracket)
+  proceedsTd.textContent = '$2,000';
+  const input = row.querySelector('input');
+  input.value = '20';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  const banner = doc.getElementById('il-tax-bracket-warning');
+  assert(banner && banner.style.display === 'none',
+         'bracket warning: hidden when sale stays in same bracket');
+
+  h.teardown();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- Bracket warning banner: hidden in flat mode even when crossing ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+{
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantNew), vestDateRaw: dmyStr(vestNew), fmv: 100.00, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestNew), fmv: 100.00, qty: 0 }],
+  });
+  h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
+  h.loadContentScripts();
+
+  const doc = h.getDocument();
+  const win = h.getWindow();
+
+  h.emitMessage({
+    type: 'SETTINGS_UPDATED',
+    settings: {
+      incomeMode: 'flat', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
+      capitalGainsSurtax: false, usdToILS: 3.65, currency: 'USD',
+      residentCreditILS: 0, ytdTaxableIncomeILS: 220000,
+      monthlySalaryILS: 0, useMonthlySalary: false,
+    },
+  });
+
+  const row = doc.querySelector('tbody tr');
+  const proceedsTd = row.querySelectorAll('td')[5];
+  proceedsTd.textContent = '$15,000';
+  const input = row.querySelector('input');
+  input.value = '100';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  const banner = doc.getElementById('il-tax-bracket-warning');
+  assert(banner && banner.style.display === 'none',
+         'bracket warning: hidden in flat mode (no bracket concept)');
+
+  h.teardown();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- Monthly salary: useMonthlySalary auto-computes effective YTD ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+{
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantNew), vestDateRaw: dmyStr(vestNew), fmv: 100.00, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestNew), fmv: 100.00, qty: 0 }],
+  });
+  h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
+  h.loadContentScripts();
+
+  const doc = h.getDocument();
+  const win = h.getWindow();
+  const monthsElapsed = new Date().getMonth() + 1;
+  const monthlyILS = 50000;
+  const expectedEffectiveYtd = monthlyILS * monthsElapsed; // should put user well into high bracket
+
+  // Important: ytdTaxableIncomeILS=0 so we can prove monthly takes precedence.
+  h.emitMessage({
+    type: 'SETTINGS_UPDATED',
+    settings: {
+      incomeMode: 'bracket', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
+      capitalGainsSurtax: false, usdToILS: 3.65, currency: 'USD',
+      residentCreditILS: 0, ytdTaxableIncomeILS: 0,
+      monthlySalaryILS: monthlyILS, useMonthlySalary: true,
+    },
+  });
+
+  const row = doc.querySelector('tbody tr');
+  const proceedsTd = row.querySelectorAll('td')[5];
+  proceedsTd.textContent = '$10,000';
+  const input = row.querySelector('input');
+  input.value = '100';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  const cells = Array.from(row.querySelectorAll('td'));
+  const tipData = cells[7] && cells[7].dataset.ilTipData;
+  assert(!!tipData, 'monthly salary: ilTipData present');
+  if (tipData) {
+    const d = JSON.parse(tipData);
+    // With monthly=50k × monthsElapsed months, user is deep into upper brackets.
+    // Compare against the same lot with monthly=0/YTD=0 — must produce higher tax.
+    h.teardown();
+
+    h.setupDOM({
+      stockplanJson: makeStockplanJson([
+        { grantDate: dmyStr(grantNew), vestDateRaw: dmyStr(vestNew), fmv: 100.00, shares: 100 },
+      ]),
+      rows: [{ vestDate: mdyStr(vestNew), fmv: 100.00, qty: 0 }],
+    });
+    h.mockFetch(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) }));
+    h.loadContentScripts();
+    const doc2 = h.getDocument();
+    const win2 = h.getWindow();
+    h.emitMessage({
+      type: 'SETTINGS_UPDATED',
+      settings: {
+        incomeMode: 'bracket', flatOrdinaryRate: 0.47, capitalGainsRate: 0.25,
+        capitalGainsSurtax: false, usdToILS: 3.65, currency: 'USD',
+        residentCreditILS: 0, ytdTaxableIncomeILS: 0,
+        monthlySalaryILS: 0, useMonthlySalary: false,
+      },
+    });
+    const row2 = doc2.querySelector('tbody tr');
+    row2.querySelectorAll('td')[5].textContent = '$10,000';
+    const input2 = row2.querySelector('input');
+    input2.value = '100';
+    input2.dispatchEvent(new win2.Event('input', { bubbles: true }));
+    const tipData2 = row2.querySelectorAll('td')[7].dataset.ilTipData;
+    const d2 = JSON.parse(tipData2);
+    assert(d.taxUSD > d2.taxUSD,
+           `monthly salary: useMonthlySalary=true (₪${expectedEffectiveYtd}) produces higher tax than zero YTD`);
+  }
+
+  h.teardown();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 console.log('\n--- Parse-failure banner when #stockplanjson is absent ---');
 // ─────────────────────────────────────────────────────────────────────────────
 

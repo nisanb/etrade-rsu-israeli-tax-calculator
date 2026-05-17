@@ -7,6 +7,7 @@ const DEFAULTS = {
   flatOrdinaryRate: 47, capitalGainsRate: 25,
   capitalGainsSurtax: false, residentCreditILS: 7986,
   ytdTaxableIncomeILS: 0,
+  monthlySalaryILS: 0, useMonthlySalary: false,
   usdToILS: 3.65, currency: 'USD',
 };
 
@@ -45,6 +46,24 @@ function _setCurrency(currency) {
   _updateRateRowVisibility();
 }
 
+function _applyMonthlySalaryUI(useMonthly, monthlyValue) {
+  const monthlyRow = document.getElementById('monthlySalaryRow');
+  const ytdInput   = document.getElementById('ytdTaxableIncomeILS');
+  const hint       = document.getElementById('autoYtdHint');
+  monthlyRow.classList.toggle('hidden', !useMonthly);
+  ytdInput.disabled = useMonthly;
+  ytdInput.style.opacity = useMonthly ? '0.55' : '1';
+  if (useMonthly) {
+    const months = new Date().getMonth() + 1;
+    const monthly = Math.max(0, parseFloat(monthlyValue) || 0);
+    const auto = Math.round(monthly * months);
+    ytdInput.value = auto;
+    hint.textContent = `Auto-YTD: ₪${auto.toLocaleString('en-US')} (${months} months × ₪${monthly.toLocaleString('en-US')})`;
+  } else {
+    hint.textContent = '';
+  }
+}
+
 function _updateRateRowVisibility() {
   const isFlat = document.getElementById('modeFlat').classList.contains('active');
   const isUSD = document.getElementById('currUSD').classList.contains('active');
@@ -66,9 +85,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('capitalGainsSurtax').checked = s.capitalGainsSurtax;
     document.getElementById('residentCreditILS').value      = s.residentCreditILS;
     document.getElementById('ytdTaxableIncomeILS').value    = s.ytdTaxableIncomeILS;
+    document.getElementById('monthlySalaryILS').value       = s.monthlySalaryILS;
+    document.getElementById('useMonthlySalary').checked     = s.useMonthlySalary;
     document.getElementById('usdToILS').value               = s.usdToILS;
     _setMode(s.incomeMode);
     _setCurrency(s.currency);
+    _applyMonthlySalaryUI(s.useMonthlySalary, s.monthlySalaryILS);
   });
 
   chrome.storage.local.get('exchangeRateCache', (stored) => {
@@ -114,6 +136,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('ytdTaxableIncomeILS').addEventListener('input', e => {
     _sendToContent({ ytdTaxableIncomeILS: parseFloat(e.target.value) || 0 });
+  });
+  document.getElementById('useMonthlySalary').addEventListener('change', e => {
+    const checked = e.target.checked;
+    const monthly = parseFloat(document.getElementById('monthlySalaryILS').value) || 0;
+    _applyMonthlySalaryUI(checked, monthly);
+    const patch = { useMonthlySalary: checked };
+    if (checked) patch.ytdTaxableIncomeILS = Math.round(monthly * (new Date().getMonth() + 1));
+    _sendToContent(patch);
+  });
+  document.getElementById('monthlySalaryILS').addEventListener('input', e => {
+    const monthly = parseFloat(e.target.value) || 0;
+    const useMonthly = document.getElementById('useMonthlySalary').checked;
+    _applyMonthlySalaryUI(useMonthly, monthly);
+    const patch = { monthlySalaryILS: monthly };
+    if (useMonthly) patch.ytdTaxableIncomeILS = Math.round(monthly * (new Date().getMonth() + 1));
+    _sendToContent(patch);
   });
   document.getElementById('usdToILS').addEventListener('input', e => {
     const rate = parseFloat(e.target.value);
