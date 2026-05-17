@@ -195,5 +195,53 @@ console.log('\n--- Poller only fires recalculate when value actually changes ---
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- Race: input event fires before proceeds td updates (deferred recovery) ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+{
+  // Simulates real E*TRADE behavior: when the user types in the qty input, the native
+  // `input` event fires synchronously, but E*TRADE only updates the proceeds td a moment
+  // later (async via React). The first recalculate() therefore sees the new qty but stale
+  // $0 proceeds and writes mode='zero'. The poller must recover this on a later tick when
+  // the proceeds td gets its updated value.
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantOld), vestDateRaw: dmyStr(vestOld), fmv: 85.20, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestOld), fmv: 85.20, qty: 0 }],
+  });
+  h.mockFetch(silentFetch);
+  h.loadContentScripts();
+
+  const doc = h.getDocument();
+  const win = h.getWindow();
+  const row = doc.querySelector('tbody tr');
+  const proceedsTd = row.querySelectorAll('td')[5];
+  const input = row.querySelector('input');
+
+  assert(getTaxCellText(doc) === '—', 'race: tax cell initially "—"');
+
+  // Step 1: user types "3" — fire input event WITHOUT updating proceeds td yet.
+  // The synchronous recalculate sees qty=3 but proceeds still "$0.00" → mode='zero'.
+  input.value = '3';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+  assert(getTaxCellText(doc) === '—',
+         'race: after input event with stale proceeds, tax cell stays "—" (the bug we are guarding against)');
+
+  // Step 2: E*TRADE updates the proceeds td asynchronously (no event fires here).
+  proceedsTd.textContent = '$256';
+
+  // Step 3: poller ticks. Even though qty did not change, the proceeds td text did.
+  // The poller must detect that and re-run recalculate.
+  h.tick(200);
+
+  const afterRecovery = getTaxCellText(doc);
+  assert(afterRecovery !== '—' && afterRecovery !== '',
+         'race: poller recovers by re-running recalculate when proceeds td text changes');
+
+  h.teardown();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
