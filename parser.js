@@ -184,15 +184,26 @@ function parseStockPlanJson(data) {
   // Multiple grants can vest on the same date, so we preserve insertion order and
   // content.js picks by positional index (same order as table rows).
   const grantDateMap = new Map();
+  // Parallel map of FMV-at-vesting per vest date. The DOM cell at the same row position
+  // can show "Est. Cost Per Share" — a broker-internal basis that differs from the
+  // Section 102 grant-date market value. The JSON's purchaseDateFMV is authoritative,
+  // so content.js prefers this over the DOM cell. See #44.
+  const fmvMap = new Map();
   lots.forEach(lot => {
-    if (!lot.grantDate) return;
     const key = lot.vestDate.getTime().toString();
-    if (!grantDateMap.has(key)) grantDateMap.set(key, []);
-    grantDateMap.get(key).push(lot.grantDate);
+    if (lot.grantDate) {
+      if (!grantDateMap.has(key)) grantDateMap.set(key, []);
+      grantDateMap.get(key).push(lot.grantDate);
+    }
+    if (Number.isFinite(lot.fmvAtVesting) && lot.fmvAtVesting > 0) {
+      if (!fmvMap.has(key)) fmvMap.set(key, []);
+      fmvMap.get(key).push(lot.fmvAtVesting);
+    }
   });
   console.log('[IL Tax] grantDateMap entries:', grantDateMap.size, '| has data:', [...grantDateMap.entries()].map(([k, v]) => new Date(+k).toLocaleDateString() + ':' + v.length).join(', '));
+  console.log('[IL Tax] fmvMap entries:', fmvMap.size);
 
-  return { marketPrice, lots, grantDateMap };
+  return { marketPrice, lots, grantDateMap, fmvMap };
 }
 
 function parseStockPlanFromPage() {

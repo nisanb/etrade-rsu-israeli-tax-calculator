@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "IL Tax Calculator for E*TRADE",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Israeli Section 102 income-track RSU tax calculator overlaid directly on the E*TRADE stock-plan holdings page.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [

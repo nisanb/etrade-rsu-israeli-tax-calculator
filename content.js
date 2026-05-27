@@ -110,25 +110,35 @@ function recalculate() {
     const proceedsMatch = proceedsText.match(/[\d,]+\.?\d*/);
     const grossUSD = qty > 0 && proceedsMatch ? parseFloat(proceedsMatch[0].replace(/,/g, '')) : 0;
 
-    // Read vest date and FMV dynamically — not captured at injection time to avoid stale data
+    // Read vest date dynamically — not captured at injection time to avoid stale data
     // after React re-renders rows with different lot data.
     const cells = row.querySelectorAll('td');
     const dateText = cells[1] ? cells[1].textContent.trim() : '';
-    const fmvText  = cells[3] ? cells[3].textContent.trim() : '0';
-
     const vestDate = _parseMDY(dateText);
-    const fmvMatch = fmvText.match(/[\d,]+\.?\d*/);
-    const fmvAtVesting = fmvMatch ? parseFloat(fmvMatch[0].replace(',', '')) : 0;
 
     // 2yr clock runs from GRANT date (תאריך ההענקה), not vest date — look it up from parsed JSON.
-    // grantDateMap is keyed by vest date timestamp; value is an ordered array of grant dates
-    // (one per grant vesting on that date, in the same order as table rows).
+    // grantDateMap/fmvMap are keyed by vest date timestamp; value is an ordered array
+    // (one entry per grant vesting on that date, in the same order as table rows).
     // Counter is incremented here (before any early return) so ordering stays consistent.
     const mapKey = vestDate.getTime().toString();
     const grantDateArr = parsedData.grantDateMap ? parsedData.grantDateMap.get(mapKey) : null;
+    const fmvArr = parsedData.fmvMap ? parsedData.fmvMap.get(mapKey) : null;
     const vestIdx = vestDateCounters.get(mapKey) || 0;
     vestDateCounters.set(mapKey, vestIdx + 1);
     const grantDate = grantDateArr ? (grantDateArr[vestIdx] ?? grantDateArr[0] ?? null) : null;
+
+    // Prefer the JSON's purchaseDateFMV (Section 102 grant-date market value) over
+    // the DOM cell, which in production E*TRADE shows "Est. Cost Per Share" — a
+    // broker-internal basis that can differ from the §102 basis. See #44.
+    const fmvFromJson = fmvArr ? (fmvArr[vestIdx] ?? fmvArr[0] ?? null) : null;
+    let fmvAtVesting;
+    if (Number.isFinite(fmvFromJson) && fmvFromJson > 0) {
+      fmvAtVesting = fmvFromJson;
+    } else {
+      const fmvText = cells[3] ? cells[3].textContent.trim() : '0';
+      const fmvMatch = fmvText.match(/[\d,]+\.?\d*/);
+      fmvAtVesting = fmvMatch ? parseFloat(fmvMatch[0].replace(',', '')) : 0;
+    }
     const refDate = grantDate || vestDate;
     const yearsSinceVesting = (now - refDate) / (365.25 * 24 * 3600 * 1000);
     const grantDateText = grantDate ? grantDate.toLocaleDateString('en-US') : null;

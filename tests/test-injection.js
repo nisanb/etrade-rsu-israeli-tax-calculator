@@ -719,6 +719,77 @@ console.log('\n--- Manual surtax checkbox still honored when useMonthlySalary is
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- #44: FMV is taken from JSON purchaseDateFMV, not the DOM cell ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+// In production E*TRADE the cells[3] column can show "Est. Cost Per Share" — a
+// broker-internal basis that differs from the §102 grant-date market value. The
+// JSON's purchaseDateFMV is authoritative.
+{
+  // JSON says FMV=$100; DOM cell will show $50 (different value).
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantOld), vestDateRaw: dmyStr(vestOld), fmv: 100.00, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestOld), fmv: 50.00, qty: 100 }],
+  });
+  h.loadContentScripts();
+
+  const doc = h.getDocument();
+  const win = h.getWindow();
+  const row = doc.querySelector('tbody tr');
+  row.querySelectorAll('td')[5].textContent = '$15,000'; // gross = $150/sh × 100
+  const input = row.querySelector('input');
+  input.value = '100';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  const tipData = row.querySelectorAll('td')[7].dataset.ilTipData;
+  assert(!!tipData, '#44: tip data present');
+  if (tipData) {
+    const d = JSON.parse(tipData);
+    assert(Math.abs(d.fmvAtVesting - 100.00) < 0.01,
+           '#44: FMV at vest comes from JSON (100), not DOM cell (50)');
+    assert(Math.abs(d.benefitUSD - 10000) < 0.01,
+           '#44: benefit = JSON FMV × qty = $10,000, not $5,000');
+  }
+
+  h.teardown();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- #44: DOM cell is used as fallback when JSON FMV is missing ---');
+// ─────────────────────────────────────────────────────────────────────────────
+
+// If the JSON lacks an FMV (or has 0), we fall back to the DOM cell so behavior
+// matches the pre-#44 path. This protects unusual JSON shapes from breaking.
+{
+  h.setupDOM({
+    stockplanJson: makeStockplanJson([
+      { grantDate: dmyStr(grantOld), vestDateRaw: dmyStr(vestOld), fmv: 0, shares: 100 },
+    ]),
+    rows: [{ vestDate: mdyStr(vestOld), fmv: 75.00, qty: 100 }],
+  });
+  h.loadContentScripts();
+
+  const doc = h.getDocument();
+  const win = h.getWindow();
+  const row = doc.querySelector('tbody tr');
+  row.querySelectorAll('td')[5].textContent = '$10,000';
+  const input = row.querySelector('input');
+  input.value = '100';
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  const tipData = row.querySelectorAll('td')[7].dataset.ilTipData;
+  if (tipData) {
+    const d = JSON.parse(tipData);
+    assert(Math.abs(d.fmvAtVesting - 75.00) < 0.01,
+           '#44: falls back to DOM FMV (75) when JSON FMV is 0/missing');
+  }
+
+  h.teardown();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 console.log('\n--- Parse-failure banner when #stockplanjson is absent ---');
 // ─────────────────────────────────────────────────────────────────────────────
 
