@@ -9,6 +9,7 @@ const DEFAULTS = {
   ytdTaxableIncomeILS: 0,
   monthlySalaryILS: 0, useMonthlySalary: false,
   usdToILS: 3.65, currency: 'USD',
+  fmvBasis: 'grant',
 };
 
 function _sendToContent(patch) {
@@ -44,6 +45,13 @@ function _setCurrency(currency) {
   document.getElementById('currUSD').classList.toggle('active', currency === 'USD');
   document.getElementById('currILS').classList.toggle('active', currency === 'ILS');
   _updateRateRowVisibility();
+}
+
+function _setFmvBasis(basis) {
+  document.getElementById('fmvGrant').classList.toggle('active', basis === 'grant');
+  document.getElementById('fmvVesting').classList.toggle('active', basis === 'vesting');
+  document.getElementById('hintFmvGrant').classList.toggle('hidden', basis !== 'grant');
+  document.getElementById('hintFmvVesting').classList.toggle('hidden', basis !== 'vesting');
 }
 
 const SURTAX_THRESHOLD_ILS = 721560;
@@ -103,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('usdToILS').value               = s.usdToILS;
     _setMode(s.incomeMode);
     _setCurrency(s.currency);
+    _setFmvBasis(s.fmvBasis || 'grant');
     _applyMonthlySalaryUI(s.useMonthlySalary, s.monthlySalaryILS);
   });
 
@@ -134,6 +143,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('currILS').addEventListener('click', () => {
     _setCurrency('ILS'); _sendToContent({ currency: 'ILS' });
+  });
+  document.getElementById('fmvGrant').addEventListener('click', () => {
+    _setFmvBasis('grant'); _sendToContent({ fmvBasis: 'grant' });
+  });
+  document.getElementById('fmvVesting').addEventListener('click', () => {
+    _setFmvBasis('vesting'); _sendToContent({ fmvBasis: 'vesting' });
   });
   document.getElementById('flatOrdinaryRate').addEventListener('input', e => {
     _sendToContent({ flatOrdinaryRate: parseFloat(e.target.value) || 0 });
