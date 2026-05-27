@@ -19,6 +19,7 @@ const STORAGE_DEFAULTS = {
   useMonthlySalary: false,
   usdToILS: 3.65,
   currency: 'USD',
+  fmvBasis: 'grant',
 };
 
 let settings = {
@@ -32,6 +33,7 @@ let settings = {
   useMonthlySalary: false,
   usdToILS: 3.65,
   currency: 'USD',
+  fmvBasis: 'grant',
 };
 
 let injectionResult = null;
@@ -122,27 +124,42 @@ function recalculate() {
     // Counter is incremented here (before any early return) so ordering stays consistent.
     const mapKey = vestDate.getTime().toString();
     const grantDateArr = parsedData.grantDateMap ? parsedData.grantDateMap.get(mapKey) : null;
-    const fmvArr = parsedData.fmvMap ? parsedData.fmvMap.get(mapKey) : null;
+    const fmvVestArr  = parsedData.fmvMap        ? parsedData.fmvMap.get(mapKey)        : null;
+    const fmvGrantArr = parsedData.fmvAtGrantMap ? parsedData.fmvAtGrantMap.get(mapKey) : null;
     const vestIdx = vestDateCounters.get(mapKey) || 0;
     vestDateCounters.set(mapKey, vestIdx + 1);
     const grantDate = grantDateArr ? (grantDateArr[vestIdx] ?? grantDateArr[0] ?? null) : null;
 
-    // Prefer the JSON's purchaseDateFMV (Section 102 grant-date market value) over
-    // the DOM cell, which in production E*TRADE shows "Est. Cost Per Share" — a
-    // broker-internal basis that can differ from the §102 basis. See #44.
-    const fmvFromJson = fmvArr ? (fmvArr[vestIdx] ?? fmvArr[0] ?? null) : null;
+    // §102 basis selection. The variable name `fmvAtVesting` is kept for compatibility
+    // with downstream tooltips/tests but its value is the chosen-basis FMV:
+    //   • 'grant'   — strict §102(b)(2) reading; matches the zero-strike-option view
+    //                 used in some private rulings. More capital-gains-favored.
+    //   • 'vesting' — industry-standard reading reported by most US-listed §102 trustees
+    //                 on the annual §106. Matches what your accountant will reconcile to.
+    // Fallback chain: chosen basis → other basis → DOM cell ("Est. Cost Per Share").
+    const fmvVest  = fmvVestArr  ? (fmvVestArr[vestIdx]  ?? fmvVestArr[0]  ?? null) : null;
+    const fmvGrant = fmvGrantArr ? (fmvGrantArr[vestIdx] ?? fmvGrantArr[0] ?? null) : null;
+    const wantGrant = settings.fmvBasis === 'grant';
+    const primary   = wantGrant ? fmvGrant : fmvVest;
+    const secondary = wantGrant ? fmvVest  : fmvGrant;
     let fmvAtVesting;
-    if (Number.isFinite(fmvFromJson) && fmvFromJson > 0) {
-      fmvAtVesting = fmvFromJson;
+    let fmvBasisUsed;
+    if (Number.isFinite(primary) && primary > 0) {
+      fmvAtVesting = primary;
+      fmvBasisUsed = wantGrant ? 'grant' : 'vesting';
+    } else if (Number.isFinite(secondary) && secondary > 0) {
+      fmvAtVesting = secondary;
+      fmvBasisUsed = wantGrant ? 'vesting (fallback; grant FMV missing in JSON)' : 'grant (fallback; vesting FMV missing in JSON)';
     } else {
       const fmvText = cells[3] ? cells[3].textContent.trim() : '0';
       const fmvMatch = fmvText.match(/[\d,]+\.?\d*/);
       fmvAtVesting = fmvMatch ? parseFloat(fmvMatch[0].replace(',', '')) : 0;
+      fmvBasisUsed = 'dom (fallback)';
     }
     const refDate = grantDate || vestDate;
     const yearsSinceVesting = (now - refDate) / (365.25 * 24 * 3600 * 1000);
     const grantDateText = grantDate ? grantDate.toLocaleDateString('en-US') : null;
-    console.log('[IL Tax] Row:', dateText, '| vestIdx:', vestIdx, '| grantDate:', grantDateText, '| years:', yearsSinceVesting.toFixed(2));
+    console.log('[IL Tax] Row:', dateText, '| vestIdx:', vestIdx, '| grantDate:', grantDateText, '| years:', yearsSinceVesting.toFixed(2), '| fmvBasis:', fmvBasisUsed, '| fmv:', fmvAtVesting);
 
     // 2yr boundary countdown — compute days remaining and the date when the lot crosses 2yr.
     // The clock runs from grant date (or vest date fallback), same as yearsSinceVesting.

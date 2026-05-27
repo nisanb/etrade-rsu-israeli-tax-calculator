@@ -11,6 +11,38 @@ function _parseDMY(str) {
   return new Date(parseInt(m[3], 10), mo, parseInt(m[1], 10));
 }
 
+// Extracts the grant-date FMV (per-share market value at grant) from a parent grant object.
+// Tries known E*TRADE field names, then a heuristic scan of fields whose key looks like
+// a per-share grant/award price. Returns null if nothing plausible found. Used to implement
+// the strict §102(b)(2) reading where the labor-income portion is FMV-at-grant × qty,
+// rather than FMV-at-vesting × qty (which trustees typically report on the §106).
+function _extractGrantFMV(grant) {
+  const knownFields = [
+    'grantFMV', 'grantDateFMV', 'grantPrice', 'grantPricePerShare',
+    'grantPriceUSD', 'grantValue', 'grantDateValue', 'grantPriceValue',
+    'awardFMV', 'awardPrice', 'awardPricePerShare', 'awardPriceUSD',
+    'pricePerShare', 'unitPrice', 'fairMarketValuePerShare', 'fmvAtGrant',
+    'fmvPerShare', 'grantSharePrice',
+  ];
+  for (const f of knownFields) {
+    const raw = grant[f];
+    if (raw == null) continue;
+    const n = parseFloat(String(raw).replace(/[^\d.\-]/g, ''));
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  // Heuristic: any field whose key combines a grant/award/fmv hint with a price/value/fmv hint.
+  for (const [k, v] of Object.entries(grant)) {
+    if (v == null) continue;
+    const kl = k.toLowerCase();
+    const grantish = kl.includes('grant') || kl.includes('award') || kl.includes('fmv') || kl.includes('fairmarket');
+    const priceish = kl.includes('price') || kl.includes('value') || kl.includes('fmv') || kl.includes('fairmarket');
+    if (!grantish || !priceish) continue;
+    const n = parseFloat(String(v).replace(/[^\d.\-]/g, ''));
+    if (Number.isFinite(n) && n > 0 && n < 100000) return n;
+  }
+  return null;
+}
+
 // Extracts the grant date string from a parent grant object.
 // Tries all known E*TRADE field names, then falls back to scanning all string-valued
 // fields whose name contains "grant", "award", "start", or "issue" for a date pattern.
@@ -63,9 +95,10 @@ function _discoverLots(data) {
       for (const grant of list) {
         if (Array.isArray(grant.childList)) {
           const grantDateStr = _extractGrantDate(grant);
-          console.log('[IL Tax] Grant keys:', Object.keys(grant).join(', '), '| grantDateStr:', grantDateStr);
+          const grantFMV = _extractGrantFMV(grant);
+          console.log('[IL Tax] Grant keys:', Object.keys(grant).join(', '), '| grantDateStr:', grantDateStr, '| grantFMV:', grantFMV);
           for (const child of grant.childList) {
-            if ((child.sellableShares || 0) > 0) lots.push({ ...child, _grantDate: grantDateStr });
+            if ((child.sellableShares || 0) > 0) lots.push({ ...child, _grantDate: grantDateStr, _grantFMV: grantFMV });
           }
         }
       }
@@ -133,7 +166,23 @@ function _mapLot(raw) {
     ? (_parseDMY(raw._grantDate) || (raw._grantDate ? new Date(raw._grantDate) : null))
     : null;
 
-  return { grantId, vestDate, fmvAtVesting, sharesAvailable, symbol: raw.symbol || 'INTC', grantDate };
+  // Grant-level FMV (passed down from parent grant via _discoverLots).
+  // Falls back to scanning the lot itself, in case some E*TRADE shapes only expose it per-lot.
+  let fmvAtGrant = null;
+  if (raw._grantFMV != null) {
+    const n = parseFloat(raw._grantFMV);
+    if (Number.isFinite(n) && n > 0) fmvAtGrant = n;
+  }
+  if (fmvAtGrant === null) {
+    const candidates = [raw.grantFMV, raw.grantPrice, raw.grantPricePerShare, raw.awardPrice, raw.fmvAtGrant];
+    for (const c of candidates) {
+      if (c == null) continue;
+      const n = parseFloat(String(c).replace(/[^\d.\-]/g, ''));
+      if (Number.isFinite(n) && n > 0) { fmvAtGrant = n; break; }
+    }
+  }
+
+  return { grantId, vestDate, fmvAtVesting, fmvAtGrant, sharesAvailable, symbol: raw.symbol || 'INTC', grantDate };
 }
 
 function _findMarketPrice(data) {
@@ -189,6 +238,11 @@ function parseStockPlanJson(data) {
   // Section 102 grant-date market value. The JSON's purchaseDateFMV is authoritative,
   // so content.js prefers this over the DOM cell. See #44.
   const fmvMap = new Map();
+  // Parallel map of FMV-at-grant per vest date — used when settings.fmvBasis === 'grant'
+  // to implement the strict §102(b)(2) reading (labor income = grant-date FMV × qty).
+  // May be empty if the parsed JSON doesn't expose grant-date FMV; content.js falls back
+  // to fmvMap (vesting-date) in that case so the extension still works.
+  const fmvAtGrantMap = new Map();
   lots.forEach(lot => {
     const key = lot.vestDate.getTime().toString();
     if (lot.grantDate) {
@@ -199,11 +253,15 @@ function parseStockPlanJson(data) {
       if (!fmvMap.has(key)) fmvMap.set(key, []);
       fmvMap.get(key).push(lot.fmvAtVesting);
     }
+    if (Number.isFinite(lot.fmvAtGrant) && lot.fmvAtGrant > 0) {
+      if (!fmvAtGrantMap.has(key)) fmvAtGrantMap.set(key, []);
+      fmvAtGrantMap.get(key).push(lot.fmvAtGrant);
+    }
   });
   console.log('[IL Tax] grantDateMap entries:', grantDateMap.size, '| has data:', [...grantDateMap.entries()].map(([k, v]) => new Date(+k).toLocaleDateString() + ':' + v.length).join(', '));
-  console.log('[IL Tax] fmvMap entries:', fmvMap.size);
+  console.log('[IL Tax] fmvMap entries:', fmvMap.size, '| fmvAtGrantMap entries:', fmvAtGrantMap.size);
 
-  return { marketPrice, lots, grantDateMap, fmvMap };
+  return { marketPrice, lots, grantDateMap, fmvMap, fmvAtGrantMap };
 }
 
 function parseStockPlanFromPage() {

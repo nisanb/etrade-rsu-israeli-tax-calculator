@@ -39,6 +39,16 @@
       </div>
 
       <div class="card">
+        <div class="card-label">§102 FMV Basis <span class="tag">labor/CG split</span></div>
+        <div class="toggle-group">
+          <button class="toggle-btn" id="fmvGrant">Grant date</button>
+          <button class="toggle-btn" id="fmvVesting">Vesting date</button>
+        </div>
+        <p class="mode-hint" id="hintFmvGrant">Strict §102(b)(2) reading — treats RSUs as zero-strike options. More gain falls into the 25% bucket. May differ from the FMV your trustee reports on the annual §106; check before filing.</p>
+        <p class="mode-hint hidden" id="hintFmvVesting">Industry-standard reading used by most US-listed §102 trustees (ESOP, IBI, Altshuler, Tamir Fishman). Matches what's reported on your §106 — no reconciliation needed.</p>
+      </div>
+
+      <div class="card">
         <div class="card-label">Capital Gains Rate <span class="tag">≥2yr from grant</span></div>
         <div class="input-pct">
           <input id="capitalGainsRate" type="number" step="0.1" min="0" max="100" />
